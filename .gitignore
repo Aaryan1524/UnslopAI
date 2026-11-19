@@ -1,0 +1,11 @@
+node_modules/
+.DS_Store
+*.log
+/tmp/
+audit-out/
+inspect-out/
+rea-out/
+unslop-out/
+.tmp-review/
+*.tgz
+.env

@@ -1,0 +1,45 @@
+{
+  "name": "unslop-ai",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Portable Agent Skill suite for forensic UI deconstruction, WebGL and CSS scroll choreography translation, anti-slop refactoring, and closed-loop Playwright kinetic QA.",
+  "license": "MIT",
+  "author": {
+    "name": "Aaryan",
+    "url": "https://github.com/Aaryan1524"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Aaryan1524/UnslopAI.git"
+  },
+  "homepage": "https://github.com/Aaryan1524/UnslopAI#readme",
+  "bugs": {
+    "url": "https://github.com/Aaryan1524/UnslopAI/issues"
+  },
+  "keywords": [
+    "agent-skills",
+    "ui-design",
+    "design-systems",
+    "playwright",
+    "webgl",
+    "scroll-animations",
+    "accessibility",
+    "wcag"
+  ],
+  "engines": {
+    "node": ">=22.6.0"
+  },
+  "type": "module",
+  "scripts": {
+    "inspect": "node skills/unslop/scripts/inspect_site.mjs",
+    "rea-inspect": "node skills/unslop/scripts/rea_inspect.mjs",
+    "audit": "node skills/unslop/scripts/audit_ui.mjs",
+    "validate:skill": "node scripts/validate-skill.mjs",
+    "verify": "node skills/unslop/scripts/verify_harness.mjs",
+    "verify:types": "node --experimental-strip-types -e \"import './skills/unslop/assets/micro-synth.ts'\"",
+    "check": "npm run validate:skill && npm run verify:types && npm run verify"
+  },
+  "dependencies": {
+    "playwright": "^1.52.0"
+  }
+}
