@@ -1,0 +1,26 @@
+name: Feature Request
+description: Propose a new extractor capability, reference guide, QA check, or distribution target.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem Statement
+      description: What design, motion, extraction, or verification gap does this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed Solution
+      description: Outline the script, reference, or workflow addition cleanly without overfitting to a single website.
+    validations:
+      required: true
+  - type: textarea
+    id: verification
+    attributes:
+      label: Verification Idea
+      description: How can this be tested deterministically inside `verify_harness.mjs`?
+    validations:
+      required: false
