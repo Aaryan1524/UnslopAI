@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generic AI Slop SaaS</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Inter, Arial, sans-serif;
+      font-size: 16px;
+      color: #222;
+      background: #ffffff;
+    }
+    .hero {
+      padding: 64px 24px;
+      text-align: center;
+      background: linear-gradient(135deg, #6366f1 0%, #8b5cf6 100%);
+      color: #ffffff;
+    }
+    .hero h1 {
+      font-size: 20px; /* Flat h1/body ratio = 1.25 */
+      margin: 0 0 12px;
+    }
+    .hero p {
+      color: #c4b5fd; /* Low contrast on purple gradient */
+    }
+    .cta {
+      padding: 8px 14px;
+      border-radius: 999px;
+      border: 0;
+      background: #ffffff;
+      color: #6366f1;
+      outline: none; /* Deliberate missing focus indicator */
+    }
+    .grid {
+      display: flex;
+      gap: 20px;
+      padding: 32px;
+    }
+    .card {
+      width: 240px;
+      padding: 24px;
+      border-radius: 24px;
+      background: #ffffff;
+      box-shadow: 0 20px 45px rgba(0, 0, 0, 0.22);
+    }
+    .muted-slop {
+      color: #b5b5b5; /* Deliberate WCAG contrast failure on #ffffff */
+    }
+    .overflow-box {
+      width: 520px; /* Deliberate mobile 390px horizontal overflow */
+      background: #f3f4f6;
+      padding: 16px;
+      margin: 16px;
+    }
+  </style>
+</head>
+<body>
+  <header class="hero">
+    <h1>Transform Your Workflow With AI</h1>
+    <p>Lorem ipsum dolor sit amet, 99.99% uptime across Acme Corp teams.</p>
+    <button class="cta">Get Started</button>
+    <button aria-label="" style="outline:none"><svg width="16" height="16"><path d="M2 2h12v12H2z"/></svg></button>
+    <img src="/does-not-exist.png" alt="Broken dashboard mockup" />
+  </header>
+  <main>
+    <section class="grid">
+      <article class="card"><h2>Fast</h2><p class="muted-slop">Faint unreadable text on white.</p></article>
+      <article class="card"><h2>Smart</h2><p class="muted-slop">Another identical card.</p></article>
+      <article class="card"><h2>Scale</h2><p class="muted-slop">Third stock card.</p></article>
+    </section>
+    <div class="overflow-box">Fixed 520px container causing mobile horizontal overflow.</div>
+  </main>
+</body>
+</html>
