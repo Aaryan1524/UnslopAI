@@ -1,0 +1,20 @@
+{
+  "name": "unslop-ai",
+  "description": "Official marketplace for UnslopAI — forensic UI deconstruction, interface refactoring, and kinetic web craft skills.",
+  "owner": {
+    "name": "Aaryan",
+    "url": "https://github.com/Aaryan1524"
+  },
+  "plugins": [
+    {
+      "name": "unslop",
+      "description": "Audit and refactor existing UIs or forensically dissect inspiration websites (DOM, CSS scroll-timelines, WebGL shaders, scroll filmstrips) to build original, verified interfaces.",
+      "version": "1.0.0",
+      "source": "./",
+      "author": {
+        "name": "Aaryan",
+        "url": "https://github.com/Aaryan1524"
+      }
+    }
+  ]
+}

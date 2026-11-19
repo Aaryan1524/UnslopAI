@@ -1,0 +1,27 @@
+name: Bug Report
+description: Report a bug in inspection scripts, kinetic QA audits, or skill workflows.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: textarea
+    id: summary
+    attributes:
+      label: What happened?
+      description: Describe the issue and what you expected instead.
+    validations:
+      required: true
+  - type: input
+    id: environment
+    attributes:
+      label: Environment
+      description: OS, Node.js version (`node -v`), and Playwright/Chrome version.
+      placeholder: "macOS 15, Node v24.x, Playwright 1.52"
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction Steps & Telemetry
+      description: Command run (e.g., `npm run inspect`, `npm run audit`), target URL or fixture, and relevant JSON snippet from `report.json` or `audit.json`.
+    validations:
+      required: true
