@@ -239,6 +239,768 @@ async function probeHoverStates(page) {
   return deltas;
 }
 
+async function probeInteractiveStates(page) {
+  const results = [];
+  try {
+    const candidates = await page.evaluate(() => {
+      const DESTRUCTIVE_RE =
+        /\b(delete|remove|logout|log\s*out|sign\s*out|checkout|check\s*out|buy|purchase|pay|submit|unsubscribe|deactivate|destroy|erase|reset)\b/i;
+      const TRIGGER_LABEL_RE = /\b(menu|search|filter|theme|modal|accordion)\b/i;
+
+      const els = Array.from(
+        document.querySelectorAll(
+          '[aria-haspopup], [aria-expanded], [role="tab"], button[aria-controls], [role="button"][aria-controls], button, [role="button"]',
+        ),
+      );
+      const seen = new Set();
+      const picked = [];
+
+      for (const el of els) {
+        if (seen.has(el)) continue;
+        seen.add(el);
+
+        // Never click normal navigation links, form submit buttons, disabled/inert, or destructive triggers.
+        // Allow progressive-enhancement <a role="tab" href="#..."> and <a role="button"> with ARIA overlay controls.
+        const role = (el.getAttribute('role') || '').toLowerCase();
+        const rawHref = (el.getAttribute('href') || '').trim();
+        const isSafeProgressiveAnchor =
+          el.tagName === 'A' &&
+          ((role === 'tab' && rawHref.startsWith('#')) ||
+            (role === 'button' &&
+              (el.hasAttribute('aria-controls') ||
+                el.hasAttribute('aria-haspopup') ||
+                el.hasAttribute('aria-expanded'))));
+        if (el.tagName === 'A' && el.hasAttribute('href') && !isSafeProgressiveAnchor) continue;
+        if (el.parentElement?.closest('a[href]')) continue;
+        if (el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
+        if (el.hasAttribute('inert') || el.getAttribute('aria-hidden') === 'true') continue;
+        if (el.closest('[inert], [aria-hidden="true"]')) continue;
+
+        const btnType = (el.getAttribute('type') || '').toLowerCase();
+        if (el.tagName === 'INPUT' && (btnType === 'submit' || btnType === 'reset')) continue;
+        if (el.tagName === 'BUTTON' && (btnType === 'submit' || (!btnType && el.closest('form')))) continue;
+
+        const style = getComputedStyle(el);
+        const rect = el.getBoundingClientRect();
+        if (
+          rect.width < 16 ||
+          rect.height < 16 ||
+          style.display === 'none' ||
+          style.visibility === 'hidden' ||
+          parseFloat(style.opacity) < 0.05 ||
+          style.pointerEvents === 'none'
+        ) {
+          continue;
+        }
+
+        const label = (
+          el.innerText ||
+          el.getAttribute('aria-label') ||
+          el.getAttribute('title') ||
+          ''
+        )
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 60);
+        const metaText = `${label} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''} ${el.id || ''} ${el.getAttribute('name') || ''}`;
+        if (DESTRUCTIVE_RE.test(metaText)) continue;
+
+        let triggerType = null;
+        if (el.hasAttribute('aria-haspopup')) triggerType = 'haspopup';
+        else if (el.hasAttribute('aria-expanded')) triggerType = 'expanded';
+        else if (el.getAttribute('role') === 'tab') triggerType = 'tab';
+        else if ((el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') && el.hasAttribute('aria-controls')) {
+          triggerType = 'aria-controls';
+        } else if (
+          (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') &&
+          TRIGGER_LABEL_RE.test(`${label} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''}`)
+        ) {
+          triggerType = 'label-match';
+        }
+        if (!triggerType) continue;
+
+        el.setAttribute('data-unslop-click-probe', String(picked.length));
+        picked.push({
+          idx: picked.length,
+          tag: el.tagName.toLowerCase(),
+          role: el.getAttribute('role') || null,
+          label,
+          triggerType,
+          ariaControls: el.getAttribute('aria-controls') || null,
+        });
+        if (picked.length >= 6) break;
+      }
+      return picked;
+    });
+
+    const baseHref = page.url().split('#')[0];
+
+    for (const item of candidates) {
+      const loc = page.locator(`[data-unslop-click-probe="${item.idx}"]`).first();
+      try {
+        const before = await page.evaluate(
+          ({ idx, ariaControls }) => {
+            const trigger = document.querySelector(`[data-unslop-click-probe="${idx}"]`);
+            if (!trigger) return null;
+
+            const isVis = (el) => {
+              if (!el || el.hasAttribute('inert') || el.getAttribute('aria-hidden') === 'true') return false;
+              if (el.closest('[inert], [aria-hidden="true"]')) return false;
+              const s = getComputedStyle(el);
+              if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.05) return false;
+              const r = el.getBoundingClientRect();
+              return r.width >= 20 && r.height >= 20;
+            };
+
+            const collectOverlays = () => {
+              const found = new Set();
+              const baseSel =
+                'dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-state="open"], [data-radix-popper-content-wrapper], [aria-modal="true"]';
+              for (const el of document.querySelectorAll(baseSel)) {
+                if (isVis(el)) found.add(el);
+              }
+              try {
+                for (const el of document.querySelectorAll('[popover]:popover-open')) {
+                  if (isVis(el)) found.add(el);
+                }
+              } catch {}
+              if (ariaControls) {
+                for (const id of ariaControls.split(/\s+/).filter(Boolean)) {
+                  const target = document.getElementById(id);
+                  if (target && isVis(target)) found.add(target);
+                }
+              }
+              return Array.from(found);
+            };
+
+            for (const old of document.querySelectorAll('[data-unslop-pre-overlay="1"], [data-unslop-prev-tab="1"]')) {
+              old.removeAttribute('data-unslop-pre-overlay');
+              old.removeAttribute('data-unslop-prev-tab');
+            }
+            const preOverlays = collectOverlays();
+            for (const ov of preOverlays) ov.setAttribute('data-unslop-pre-overlay', '1');
+            if (trigger.getAttribute('role') === 'tab' && trigger.getAttribute('aria-selected') !== 'true') {
+              const tablist = trigger.closest('[role="tablist"]');
+              const activeTab = tablist?.querySelector('[role="tab"][aria-selected="true"]');
+              if (activeTab && activeTab !== trigger) activeTab.setAttribute('data-unslop-prev-tab', '1');
+            }
+
+            const rootEl = document.documentElement;
+            const bodyEl = document.body;
+            return {
+              ariaExpanded: trigger.getAttribute('aria-expanded'),
+              ariaSelected: trigger.getAttribute('aria-selected'),
+              ariaPressed: trigger.getAttribute('aria-pressed'),
+              visibleOverlayCount: preOverlays.length,
+              rootClass: rootEl.className || '',
+              rootDataTheme: rootEl.getAttribute('data-theme'),
+              bodyClass: bodyEl?.className || '',
+              bodyDataTheme: bodyEl?.getAttribute('data-theme') || null,
+              colorScheme: getComputedStyle(rootEl).colorScheme || '',
+            };
+          },
+          { idx: item.idx, ariaControls: item.ariaControls },
+        );
+
+        if (!before) continue;
+
+        await loc.scrollIntoViewIfNeeded({ timeout: 1000 }).catch(() => {});
+        await loc.click({ timeout: 1500 });
+        await page.waitForTimeout(220);
+
+        // Guard against unexpected JS-driven page navigation
+        if (page.url().split('#')[0] !== baseHref) {
+          await page.goBack({ waitUntil: 'domcontentloaded', timeout: 3000 }).catch(() => {});
+          break;
+        }
+
+        const after = await page.evaluate(
+          ({ idx, ariaControls }) => {
+            const trigger = document.querySelector(`[data-unslop-click-probe="${idx}"]`);
+            const isVis = (el) => {
+              if (!el || el.hasAttribute('inert') || el.getAttribute('aria-hidden') === 'true') return false;
+              if (el.closest('[inert], [aria-hidden="true"]')) return false;
+              const s = getComputedStyle(el);
+              if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.05) return false;
+              const r = el.getBoundingClientRect();
+              return r.width >= 20 && r.height >= 20;
+            };
+
+            const collectOverlays = () => {
+              const found = new Set();
+              if (ariaControls) {
+                for (const id of ariaControls.split(/\s+/).filter(Boolean)) {
+                  const target = document.getElementById(id);
+                  if (target && isVis(target)) found.add(target);
+                }
+              }
+              const baseSel =
+                'dialog[open], [role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], [data-state="open"], [data-radix-popper-content-wrapper], [aria-modal="true"]';
+              for (const el of document.querySelectorAll(baseSel)) {
+                if (isVis(el)) found.add(el);
+              }
+              try {
+                for (const el of document.querySelectorAll('[popover]:popover-open')) {
+                  if (isVis(el)) found.add(el);
+                }
+              } catch {}
+              return Array.from(found);
+            };
+
+            const postOverlays = collectOverlays();
+            const newOverlayEl = postOverlays.find((ov) => ov.getAttribute('data-unslop-pre-overlay') !== '1') || null;
+            let openedOverlay = null;
+            if (newOverlayEl) {
+              const r = newOverlayEl.getBoundingClientRect();
+              newOverlayEl.setAttribute('data-unslop-opened-overlay', '1');
+              openedOverlay = {
+                tag: newOverlayEl.tagName.toLowerCase(),
+                role: newOverlayEl.getAttribute('role') || (newOverlayEl.tagName === 'DIALOG' ? 'dialog' : null),
+                box: {
+                  x: Math.round(r.x),
+                  y: Math.round(r.y),
+                  width: Math.round(r.width),
+                  height: Math.round(r.height),
+                },
+              };
+            }
+
+            const rootEl = document.documentElement;
+            const bodyEl = document.body;
+            return {
+              ariaExpanded: trigger ? trigger.getAttribute('aria-expanded') : null,
+              ariaSelected: trigger ? trigger.getAttribute('aria-selected') : null,
+              ariaPressed: trigger ? trigger.getAttribute('aria-pressed') : null,
+              visibleOverlayCount: postOverlays.length,
+              openedOverlay,
+              rootClass: rootEl.className || '',
+              rootDataTheme: rootEl.getAttribute('data-theme'),
+              bodyClass: bodyEl?.className || '',
+              bodyDataTheme: bodyEl?.getAttribute('data-theme') || null,
+              colorScheme: getComputedStyle(rootEl).colorScheme || '',
+            };
+          },
+          { idx: item.idx, ariaControls: item.ariaControls },
+        );
+
+        const ariaChanged =
+          after.ariaExpanded !== before.ariaExpanded ||
+          after.ariaSelected !== before.ariaSelected ||
+          after.ariaPressed !== before.ariaPressed;
+
+        const themeOrRootChanged =
+          after.rootClass !== before.rootClass ||
+          after.rootDataTheme !== before.rootDataTheme ||
+          after.bodyClass !== before.bodyClass ||
+          after.bodyDataTheme !== before.bodyDataTheme ||
+          after.colorScheme !== before.colorScheme;
+
+        // Clean dismissal / restoration
+        let dismissedCleanly = true;
+        const needsOverlayDismiss = Boolean(after.openedOverlay) || after.ariaExpanded === 'true';
+        if (needsOverlayDismiss) {
+          await page.keyboard.press('Escape').catch(() => {});
+          await page.waitForTimeout(140);
+        }
+
+        const stillOpenOrMutated = await page.evaluate(
+          ({ idx, ariaControls, beforeExpanded, beforePressed, beforeRootClass, beforeRootTheme, beforeBodyClass, beforeBodyTheme }) => {
+            const trigger = document.querySelector(`[data-unslop-click-probe="${idx}"]`);
+            const isVis = (el) => {
+              if (!el || el.hasAttribute('inert') || el.getAttribute('aria-hidden') === 'true') return false;
+              const s = getComputedStyle(el);
+              if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.05) return false;
+              const r = el.getBoundingClientRect();
+              return r.width >= 20 && r.height >= 20;
+            };
+            const openedEl = document.querySelector('[data-unslop-opened-overlay="1"]');
+            let overlayStillOpen = Boolean(openedEl && isVis(openedEl));
+            if (!overlayStillOpen && ariaControls) {
+              for (const id of ariaControls.split(/\s+/).filter(Boolean)) {
+                const t = document.getElementById(id);
+                if (t && t.getAttribute('data-unslop-pre-overlay') !== '1' && isVis(t)) {
+                  overlayStillOpen = true;
+                }
+              }
+            }
+            const expandedStillOpen = Boolean(
+              trigger && trigger.getAttribute('aria-expanded') === 'true' && beforeExpanded !== 'true',
+            );
+            const pressedChanged = Boolean(trigger && trigger.getAttribute('aria-pressed') !== beforePressed);
+            const rootStillChanged =
+              (document.documentElement.className || '') !== beforeRootClass ||
+              document.documentElement.getAttribute('data-theme') !== beforeRootTheme ||
+              (document.body?.className || '') !== beforeBodyClass ||
+              (document.body?.getAttribute('data-theme') || null) !== beforeBodyTheme;
+            return { overlayStillOpen, expandedStillOpen, pressedChanged, rootStillChanged };
+          },
+          {
+            idx: item.idx,
+            ariaControls: item.ariaControls,
+            beforeExpanded: before.ariaExpanded,
+            beforePressed: before.ariaPressed,
+            beforeRootClass: before.rootClass,
+            beforeRootTheme: before.rootDataTheme,
+            beforeBodyClass: before.bodyClass,
+            beforeBodyTheme: before.bodyDataTheme,
+          },
+        );
+
+        if (item.role === 'tab') {
+          const prevTab = page.locator('[data-unslop-prev-tab="1"]').first();
+          try {
+            if ((await prevTab.count()) > 0) {
+              await prevTab.click({ timeout: 1000 });
+              await page.waitForTimeout(120);
+            }
+          } catch {}
+        } else if (
+          stillOpenOrMutated.overlayStillOpen ||
+          stillOpenOrMutated.expandedStillOpen ||
+          stillOpenOrMutated.pressedChanged ||
+          stillOpenOrMutated.rootStillChanged
+        ) {
+          // Try clicking a close button inside the opened overlay first if overlay is still open, else re-click trigger
+          let reclicked = false;
+          if (stillOpenOrMutated.overlayStillOpen) {
+            const closeBtn = page
+              .locator(
+                '[data-unslop-opened-overlay="1"] button[aria-label*="close" i], [data-unslop-opened-overlay="1"] button[aria-label*="dismiss" i], [data-unslop-opened-overlay="1"] [data-dismiss]',
+              )
+              .first();
+            try {
+              if ((await closeBtn.count()) > 0) {
+                await closeBtn.click({ timeout: 1000 });
+                await page.waitForTimeout(140);
+                reclicked = true;
+              }
+            } catch {}
+          }
+          if (!reclicked) {
+            await loc.click({ timeout: 1200 }).catch(() => {});
+            await page.waitForTimeout(140);
+          }
+        }
+
+        // Verify final dismissal status and clean up temporary overlay markers
+        dismissedCleanly = await page.evaluate(
+          ({ idx, beforeExpanded }) => {
+            const trigger = document.querySelector(`[data-unslop-click-probe="${idx}"]`);
+            const openedEl = document.querySelector('[data-unslop-opened-overlay="1"]');
+            let stillOpen = false;
+            if (openedEl) {
+              const s = getComputedStyle(openedEl);
+              const r = openedEl.getBoundingClientRect();
+              if (
+                !openedEl.hasAttribute('inert') &&
+                openedEl.getAttribute('aria-hidden') !== 'true' &&
+                s.display !== 'none' &&
+                s.visibility !== 'hidden' &&
+                parseFloat(s.opacity) >= 0.05 &&
+                r.width >= 20 &&
+                r.height >= 20
+              ) {
+                stillOpen = true;
+              }
+            }
+            if (trigger && trigger.getAttribute('aria-expanded') === 'true' && beforeExpanded !== 'true') {
+              stillOpen = true;
+            }
+            for (const el of document.querySelectorAll(
+              '[data-unslop-pre-overlay="1"], [data-unslop-opened-overlay="1"], [data-unslop-prev-tab="1"]',
+            )) {
+              el.removeAttribute('data-unslop-pre-overlay');
+              el.removeAttribute('data-unslop-opened-overlay');
+              el.removeAttribute('data-unslop-prev-tab');
+            }
+            return !stillOpen;
+          },
+          { idx: item.idx, beforeExpanded: before.ariaExpanded },
+        );
+
+        results.push({
+          tag: item.tag,
+          role: item.role,
+          label: item.label,
+          triggerType: item.triggerType,
+          before: {
+            ariaExpanded: before.ariaExpanded,
+            ariaSelected: before.ariaSelected,
+            visibleOverlayCount: before.visibleOverlayCount,
+            rootClass: before.rootClass,
+            rootDataTheme: before.rootDataTheme,
+          },
+          after: {
+            ariaExpanded: after.ariaExpanded,
+            ariaSelected: after.ariaSelected,
+            visibleOverlayCount: after.visibleOverlayCount,
+            rootClass: after.rootClass,
+            rootDataTheme: after.rootDataTheme,
+          },
+          ariaChanged,
+          openedOverlay: after.openedOverlay,
+          themeOrRootChanged,
+          dismissedCleanly,
+        });
+      } catch {
+        // Obscured, detached, or timed-out trigger; clean up markers and continue
+        await page
+          .evaluate(() => {
+            for (const el of document.querySelectorAll(
+              '[data-unslop-pre-overlay="1"], [data-unslop-opened-overlay="1"], [data-unslop-prev-tab="1"]',
+            )) {
+              el.removeAttribute('data-unslop-pre-overlay');
+              el.removeAttribute('data-unslop-opened-overlay');
+              el.removeAttribute('data-unslop-prev-tab');
+            }
+          })
+          .catch(() => {});
+      }
+    }
+
+    await page
+      .evaluate(() => {
+        for (const el of document.querySelectorAll('[data-unslop-click-probe]')) {
+          el.removeAttribute('data-unslop-click-probe');
+        }
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      })
+      .catch(() => {});
+  } catch {
+    // Non-fatal interactive probing failure
+  }
+  return results;
+}
+
+async function captureEntranceReveals(page) {
+  const reveals = [];
+  try {
+    // Must run at scrollY === 0 BEFORE autoScrollHydrate triggers one-shot IntersectionObservers!
+    const plan = await page.evaluate(() => {
+      const pool = new Set();
+      for (const sel of ['main > *', 'section']) {
+        for (const el of document.querySelectorAll(sel)) {
+          if (el.tagName === 'HEADER' || el.tagName === 'FOOTER') continue;
+          if (el.closest('header, footer')) continue;
+          if (el.hasAttribute('inert') || el.getAttribute('aria-hidden') === 'true') continue;
+          if (el.closest('[inert], [aria-hidden="true"]')) continue;
+          const s = getComputedStyle(el);
+          if (s.display === 'none' || s.visibility === 'hidden' || s.position === 'fixed') continue;
+          const r = el.getBoundingClientRect();
+          const docY = r.top + window.scrollY;
+          if (docY <= 750 || r.height < 40 || r.height > 1250 || r.width < 300) continue;
+          pool.add(el);
+        }
+      }
+
+      const arr = Array.from(pool);
+      const deduped = arr.filter((el) => {
+        const elH = Math.max(1, el.getBoundingClientRect().height);
+        const childCands = arr.filter((other) => other !== el && el.contains(other));
+        if (childCands.length >= 2 && (el.tagName === 'DIV' || el.tagName === 'MAIN')) return false;
+        const parentSingleWrap = arr.some((other) => {
+          if (other === el || !other.contains(el)) return false;
+          const otherH = Math.max(1, other.getBoundingClientRect().height);
+          const otherChildren = arr.filter((c) => c !== other && other.contains(c));
+          return otherChildren.length === 1 && elH / otherH >= 0.85;
+        });
+        return !parentSingleWrap;
+      });
+
+      deduped.sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+      const picked = deduped.slice(0, 5);
+
+      return picked.map((sec, sIdx) => {
+        sec.setAttribute('data-unslop-reveal-sec', String(sIdx));
+        const sr = sec.getBoundingClientRect();
+        const ss = getComputedStyle(sec);
+
+        const targets = [];
+        const seenTargets = new Set();
+        const addTarget = (el) => {
+          if (!el || seenTargets.has(el) || targets.length >= 16) return;
+          if (el.hasAttribute('inert') || el.getAttribute('aria-hidden') === 'true') return;
+          if (el.closest('[inert], [aria-hidden="true"]')) return;
+          const cs = getComputedStyle(el);
+          if (cs.display === 'none' || cs.visibility === 'hidden') return;
+          const cr = el.getBoundingClientRect();
+          if (cr.width < 10 || cr.height < 10) return;
+          seenTargets.add(el);
+          const targetId = `${sIdx}-${targets.length}`;
+          el.setAttribute('data-unslop-reveal-target', targetId);
+          targets.push({
+            targetId,
+            tag: el.tagName.toLowerCase(),
+            textSample: (el.innerText || '').replace(/\s+/g, ' ').trim().slice(0, 48),
+            before: {
+              opacity: cs.opacity,
+              transform: cs.transform,
+              filter: cs.filter,
+            },
+          });
+        };
+
+        // Include the section itself if it starts visually recessed for entrance animation
+        if (parseFloat(ss.opacity) < 0.99 || ss.transform !== 'none' || ss.filter !== 'none') {
+          addTarget(sec);
+        }
+        for (const el of sec.querySelectorAll(
+          'h1, h2, h3, article, figure, li, [class*="card" i], [data-reveal], [data-aos], [data-animate], [style*="opacity"], [style*="transform"]',
+        )) {
+          addTarget(el);
+        }
+        if (targets.length < 10) {
+          for (const el of sec.querySelectorAll(':scope > div, :scope > div > div, :scope > p')) {
+            addTarget(el);
+          }
+        }
+
+        return {
+          revealId: sIdx,
+          tag: sec.tagName.toLowerCase(),
+          y: Math.round(sr.top + window.scrollY),
+          height: Math.round(sr.height),
+          targets,
+        };
+      });
+    });
+
+    if (!plan.length) return [];
+
+    // Ordered top-to-bottom scroll pass so each section's entrance reveal is captured freshly
+    for (const secPlan of plan) {
+      if (!secPlan.targets.length) continue;
+      await page.evaluate(
+        ({ revealId }) => {
+          const el = document.querySelector(`[data-unslop-reveal-sec="${revealId}"]`);
+          if (!el) return;
+          const r = el.getBoundingClientRect();
+          const targetY = Math.max(0, Math.round(r.top + window.scrollY - Math.round((window.innerHeight || 900) * 0.25)));
+          window.scrollTo({ top: targetY, left: 0, behavior: 'instant' });
+        },
+        { revealId: secPlan.revealId },
+      );
+
+      await page.waitForTimeout(550);
+
+      const afterMap = await page.evaluate(
+        ({ targetIds }) => {
+          const out = {};
+          for (const id of targetIds) {
+            const el = document.querySelector(`[data-unslop-reveal-target="${id}"]`);
+            if (!el) continue;
+            const cs = getComputedStyle(el);
+            out[id] = {
+              opacity: cs.opacity,
+              transform: cs.transform,
+              filter: cs.filter,
+            };
+          }
+          return out;
+        },
+        { targetIds: secPlan.targets.map((t) => t.targetId) },
+      );
+
+      let revealedCount = 0;
+      const sampleTransitions = [];
+      for (const t of secPlan.targets) {
+        const after = afterMap[t.targetId];
+        if (!after) continue;
+        const opBefore = parseFloat(t.before.opacity);
+        const opAfter = parseFloat(after.opacity);
+        const opacityChanged =
+          Number.isFinite(opBefore) && Number.isFinite(opAfter) && Math.abs(opAfter - opBefore) >= 0.05;
+        const transformChanged = t.before.transform !== after.transform;
+        const filterChanged = t.before.filter !== after.filter;
+
+        if (opacityChanged || transformChanged || filterChanged) {
+          revealedCount++;
+          if (sampleTransitions.length < 6) {
+            sampleTransitions.push({
+              tag: t.tag,
+              textSample: t.textSample,
+              changedProps: [
+                ...(opacityChanged ? ['opacity'] : []),
+                ...(transformChanged ? ['transform'] : []),
+                ...(filterChanged ? ['filter'] : []),
+              ],
+              before: {
+                opacity: t.before.opacity,
+                transform: t.before.transform !== 'none' ? t.before.transform.slice(0, 72) : 'none',
+                filter: t.before.filter !== 'none' ? t.before.filter.slice(0, 72) : 'none',
+              },
+              after: {
+                opacity: after.opacity,
+                transform: after.transform !== 'none' ? after.transform.slice(0, 72) : 'none',
+                filter: after.filter !== 'none' ? after.filter.slice(0, 72) : 'none',
+              },
+            });
+          }
+        }
+      }
+
+      reveals.push({
+        revealId: secPlan.revealId,
+        tag: secPlan.tag,
+        revealedCount,
+        sampleTransitions,
+      });
+    }
+
+    await page
+      .evaluate(() => {
+        for (const el of document.querySelectorAll('[data-unslop-reveal-target]')) {
+          el.removeAttribute('data-unslop-reveal-target');
+        }
+        window.scrollTo({ top: 0, left: 0, behavior: 'instant' });
+      })
+      .catch(() => {});
+  } catch {
+    // Non-fatal reveal diffing failure
+  }
+  return reveals;
+}
+
+async function analyzeMobileCollapse(page, desktopSectionLayoutMeta) {
+  return page.evaluate((desktopMeta) => {
+    const mobileDocHeight = Math.round(document.documentElement.scrollHeight);
+    const docOverflowPx = Math.max(0, Math.round(document.documentElement.scrollWidth - window.innerWidth));
+
+    // Detect visible mobile header menu/drawer trigger
+    const MENU_RE = /(menu|nav|hamburger|drawer|sidebar|bars)/i;
+    let headerHasMenuTrigger = false;
+    const headerRoots = Array.from(document.querySelectorAll('header, [role="banner"]'));
+    const topNavFallback = Array.from(document.querySelectorAll('nav, [role="navigation"]')).filter((nav) => {
+      if (nav.closest('header, [role="banner"], footer')) return false;
+      const nr = nav.getBoundingClientRect();
+      return nr.top < 120 && nr.height >= 24 && nr.height <= 220;
+    });
+    for (const hdr of [...headerRoots, ...topNavFallback]) {
+      for (const el of hdr.querySelectorAll(
+        'button, [role="button"], summary, label[for], [aria-controls], [aria-haspopup], [aria-expanded]',
+      )) {
+        if (el.hasAttribute('inert') || el.getAttribute('aria-hidden') === 'true') continue;
+        if (el.closest('[inert], [aria-hidden="true"]')) continue;
+        const s = getComputedStyle(el);
+        const r = el.getBoundingClientRect();
+        if (
+          s.display === 'none' ||
+          s.visibility === 'hidden' ||
+          parseFloat(s.opacity) < 0.05 ||
+          r.width < 20 ||
+          r.height < 20
+        ) {
+          continue;
+        }
+        const meta = `${el.innerText || ''} ${el.getAttribute('aria-label') || ''} ${el.getAttribute('title') || ''} ${el.id || ''} ${typeof el.className === 'string' ? el.className : ''}`;
+        const hasAriaMenuSignal =
+          el.hasAttribute('aria-controls') ||
+          el.hasAttribute('aria-expanded') ||
+          el.getAttribute('aria-haspopup') === 'menu' ||
+          el.getAttribute('aria-haspopup') === 'true';
+        const isCompactIconBtn =
+          (el.tagName === 'BUTTON' || el.getAttribute('role') === 'button') &&
+          r.width <= 64 &&
+          r.height <= 64 &&
+          (el.innerText || '').trim().length === 0 &&
+          Boolean(el.querySelector('svg, span, i'));
+        if (MENU_RE.test(meta) || hasAriaMenuSignal || isCompactIconBtn) {
+          headerHasMenuTrigger = true;
+          break;
+        }
+      }
+      if (headerHasMenuTrigger) break;
+    }
+
+    let desktopMultiColSectionsCount = 0;
+    let mobileSingleColCollapsedCount = 0;
+    let stickyTrackCollapsedCount = 0;
+
+    for (const meta of desktopMeta || []) {
+      const el = document.querySelector(`[data-unslop-comp="${meta.idx}"]`);
+      if (meta.isMultiCol) desktopMultiColSectionsCount++;
+      if (!el) continue;
+
+      if (meta.isMultiCol) {
+        const directChildren = Array.from(el.children).filter((c) => {
+          const cs = getComputedStyle(c);
+          return cs.display !== 'none' && c.getBoundingClientRect().height > 16;
+        });
+        const taggedTarget = el.matches(`[data-unslop-layout-target="${meta.idx}"]`)
+          ? el
+          : el.querySelector(`[data-unslop-layout-target="${meta.idx}"]`);
+        const layoutTarget =
+          taggedTarget ||
+          (directChildren.length === 1 && (directChildren[0].tagName === 'DIV' || directChildren[0].tagName === 'SECTION')
+            ? Array.from(directChildren[0].children).find((c) => {
+                const cs = getComputedStyle(c);
+                return cs.display === 'grid' || cs.display === 'flex';
+              }) || directChildren[0]
+            : el);
+        const ls = getComputedStyle(layoutTarget);
+        const visChildren = Array.from(layoutTarget.children).filter((c) => {
+          const cs = getComputedStyle(c);
+          const cr = c.getBoundingClientRect();
+          return cs.display !== 'none' && cs.visibility !== 'hidden' && cr.height >= 16 && cr.width >= 16;
+        });
+
+        let collapsedToSingleCol = false;
+        if (ls.display === 'grid' || ls.display === 'inline-grid') {
+          const cols =
+            ls.gridTemplateColumns && ls.gridTemplateColumns !== 'none'
+              ? ls.gridTemplateColumns.split(' ').filter(Boolean).length
+              : 1;
+          collapsedToSingleCol = cols <= 1;
+        } else if (ls.display === 'flex' || ls.display === 'inline-flex') {
+          if (ls.flexDirection.startsWith('column')) {
+            collapsedToSingleCol = true;
+          } else if (visChildren.length >= 2) {
+            const rects = visChildren.map((c) => c.getBoundingClientRect()).sort((a, b) => a.top - b.top);
+            let allStacked = true;
+            for (let i = 1; i < rects.length; i++) {
+              if (rects[i].top < rects[i - 1].bottom - 4) {
+                allStacked = false;
+                break;
+              }
+            }
+            collapsedToSingleCol = allStacked;
+          }
+        } else {
+          collapsedToSingleCol = true;
+        }
+
+        if (collapsedToSingleCol) mobileSingleColCollapsedCount++;
+      }
+
+      if (meta.isStickyTrack) {
+        let mobileHasSticky = false;
+        for (const desc of el.querySelectorAll('*')) {
+          const ds = getComputedStyle(desc);
+          if (ds.display !== 'none' && ds.position === 'sticky') {
+            mobileHasSticky = true;
+            break;
+          }
+        }
+        const mobileH = Math.round(el.getBoundingClientRect().height);
+        if ((meta.hasStickyDescendants && !mobileHasSticky) || (meta.isTallTrack && mobileH < meta.desktopHeight * 0.7)) {
+          stickyTrackCollapsedCount++;
+        }
+      }
+    }
+
+    return {
+      docOverflowPx,
+      collapseSummary: {
+        headerHasMenuTrigger,
+        desktopMultiColSectionsCount,
+        mobileSingleColCollapsedCount,
+        stickyTrackCollapsedCount,
+        mobileDocHeight,
+      },
+    };
+  }, desktopSectionLayoutMeta);
+}
+
 async function captureCdpSnapshotStats(context, page) {
   try {
     const cdp = await context.newCDPSession(page);
@@ -381,6 +1143,8 @@ export async function inspectSite(url, outputDir) {
     }
 
     await page.waitForTimeout(550);
+    // Capture below-fold viewport-entry entrance reveals BEFORE autoScrollHydrate locks one-shot observers
+    const rawEntranceReveals = await captureEntranceReveals(page);
     await autoScrollHydrate(page);
     await Promise.allSettled(pendingCssReads);
 
@@ -842,19 +1606,64 @@ export async function inspectSite(url, outputDir) {
         const textLen = (el.innerText || '').trim().length;
         if (headings === 0 && buttons === 0 && links === 0 && mediaCount === 0 && textLen < 8) continue;
 
+        const isMultiColFlexOrGrid = (node) => {
+          if (!node) return false;
+          const cs = getComputedStyle(node);
+          if (cs.display === 'grid' || cs.display === 'inline-grid') {
+            const cols =
+              cs.gridTemplateColumns && cs.gridTemplateColumns !== 'none'
+                ? cs.gridTemplateColumns.split(' ').filter(Boolean).length
+                : 0;
+            return cols >= 2;
+          }
+          if ((cs.display === 'flex' || cs.display === 'inline-flex') && cs.flexDirection === 'row') {
+            const visKids = Array.from(node.children).filter((c) => {
+              const kcs = getComputedStyle(c);
+              const kr = c.getBoundingClientRect();
+              return kcs.display !== 'none' && kcs.visibility !== 'hidden' && kr.height >= 20 && kr.width >= 20;
+            });
+            if (visKids.length >= 2) {
+              const rects = visKids.map((c) => c.getBoundingClientRect());
+              for (let a = 0; a < rects.length; a++) {
+                for (let b = a + 1; b < rects.length; b++) {
+                  const vertOverlap = Math.min(rects[a].bottom, rects[b].bottom) - Math.max(rects[a].top, rects[b].top);
+                  const sideBySide = rects[a].right <= rects[b].left + 12 || rects[b].right <= rects[a].left + 12;
+                  if (vertOverlap > 12 && sideBySide) return true;
+                }
+              }
+            }
+          }
+          return false;
+        };
+
         const directChildren = Array.from(el.children).filter((c) => c.getBoundingClientRect().height > 20);
-        const layoutTarget =
-          directChildren.length === 1 && (directChildren[0].tagName === 'DIV' || directChildren[0].tagName === 'SECTION')
-            ? (Array.from(directChildren[0].children).find((c) => {
-                const cs = getComputedStyle(c);
-                return cs.display === 'grid' || (cs.display === 'flex' && cs.flexDirection === 'row');
-              }) || directChildren[0])
-            : el;
+        const elIsGridOrFlexRow =
+          s.display === 'grid' ||
+          s.display === 'inline-grid' ||
+          ((s.display === 'flex' || s.display === 'inline-flex') && s.flexDirection === 'row');
+
+        let layoutTarget = el;
+        if (directChildren.length === 1 && (directChildren[0].tagName === 'DIV' || directChildren[0].tagName === 'SECTION')) {
+          const innerKids = Array.from(directChildren[0].children);
+          layoutTarget =
+            innerKids.find((c) => isMultiColFlexOrGrid(c)) ||
+            innerKids.find((c) => {
+              const cs = getComputedStyle(c);
+              return cs.display === 'grid' || (cs.display === 'flex' && cs.flexDirection === 'row');
+            }) ||
+            directChildren[0];
+        } else if (!elIsGridOrFlexRow) {
+          const multiColDirectChild = directChildren.find((c) => isMultiColFlexOrGrid(c));
+          if (multiColDirectChild) {
+            layoutTarget = multiColDirectChild;
+          }
+        }
         const ls = getComputedStyle(layoutTarget);
         const layoutChildren = Array.from(layoutTarget.children).filter((c) => c.getBoundingClientRect().height > 20);
         const gridCols = ls.gridTemplateColumns && ls.gridTemplateColumns !== 'none'
           ? ls.gridTemplateColumns.split(' ').filter(Boolean).length
           : 0;
+        const isDesktopMultiColTarget = isMultiColFlexOrGrid(layoutTarget);
 
         const dissolved = dissolveSubtree(el);
         let archetype = 'section';
@@ -874,6 +1683,8 @@ export async function inspectSite(url, outputDir) {
 
         rawComponents.push({
           el,
+          layoutTarget,
+          isDesktopMultiColTarget,
           data: {
             tag,
             archetype,
@@ -909,9 +1720,166 @@ export async function inspectSite(url, outputDir) {
 
       rawComponents.sort((a, b) => a.data.box.y - b.data.box.y);
       const pickedComponents = rawComponents.slice(0, 24);
+      const revealSectionIndexMap = {};
+      const desktopSectionLayoutMeta = [];
+
       pickedComponents.forEach((item, idx) => {
         item.el.setAttribute('data-unslop-comp', String(idx));
+        if (item.layoutTarget) {
+          item.layoutTarget.setAttribute('data-unslop-layout-target', String(idx));
+        }
+
+        // Map any pre-hydration reveal probe marker to the final section index
+        const directRevealId = item.el.getAttribute('data-unslop-reveal-sec');
+        if (directRevealId !== null) {
+          revealSectionIndexMap[directRevealId] = idx;
+        } else {
+          const nestedReveal = item.el.querySelector('[data-unslop-reveal-sec]');
+          if (nestedReveal) {
+            revealSectionIndexMap[nestedReveal.getAttribute('data-unslop-reveal-sec')] = idx;
+          } else {
+            const ancestorReveal = item.el.closest('[data-unslop-reveal-sec]');
+            if (ancestorReveal) {
+              revealSectionIndexMap[ancestorReveal.getAttribute('data-unslop-reveal-sec')] = idx;
+            }
+          }
+        }
+
+        const isHeader = item.data.archetype === 'header-nav';
+        const isMultiCol = !isHeader && Boolean(item.isDesktopMultiColTarget);
+
+        const isTallTrack = item.data.box.height > 2600;
+        const hasStickyDescendants = Boolean(item.data.dissolved?.hasStickyDescendants);
+        const isStickyTrack = !isHeader && (item.data.archetype === 'scroll-choreographed-stage' || hasStickyDescendants);
+
+        desktopSectionLayoutMeta.push({
+          idx,
+          isMultiCol,
+          isStickyTrack,
+          hasStickyDescendants,
+          isTallTrack,
+          desktopHeight: item.data.box.height,
+        });
       });
+
+      for (const el of document.querySelectorAll('[data-unslop-reveal-sec]')) {
+        el.removeAttribute('data-unslop-reveal-sec');
+      }
+
+      // Media Aspect-Ratio Inventory (visible <img>, <video>, <canvas> across the page and per section)
+      const normalizeAspectRatio = (width, height) => {
+        if (!width || !height || width <= 0 || height <= 0) return 'unknown';
+        const r = width / height;
+        const standard = [
+          { label: '16:9', value: 16 / 9 },
+          { label: '16:10', value: 16 / 10 },
+          { label: '4:3', value: 4 / 3 },
+          { label: '1:1', value: 1 },
+          { label: '3:4', value: 3 / 4 },
+          { label: '9:16', value: 9 / 16 },
+        ];
+        let bestStd = null;
+        let bestDiff = Infinity;
+        for (const cand of standard) {
+          const diff = Math.abs(r - cand.value) / cand.value;
+          if (diff <= 0.055 && diff < bestDiff) {
+            bestDiff = diff;
+            bestStd = cand.label;
+          }
+        }
+        if (bestStd) return bestStd;
+        if (r >= 6) return `${Math.round(r)}:1`;
+        if (r <= 1 / 6) return `1:${Math.round(1 / r)}`;
+        let bestW = Math.max(1, Math.round(r));
+        let bestH = 1;
+        let bestErr = Math.abs(r - bestW) / r;
+        for (let h = 1; h <= 9; h++) {
+          const w = Math.max(1, Math.round(r * h));
+          const err = Math.abs(r - w / h) / r;
+          if (err < bestErr) {
+            bestErr = err;
+            bestW = w;
+            bestH = h;
+          }
+          if (bestErr <= 0.035) break;
+        }
+        const gcd = (a, b) => (b === 0 ? a : gcd(b, a % b));
+        const g = gcd(bestW, bestH);
+        return `${bestW / g}:${bestH / g}`;
+      };
+
+      const mediaEls = queryAllDeep(document.body, 'img, video, canvas', 160);
+      const mediaItems = [];
+      const byType = { img: 0, video: 0, canvas: 0 };
+      const ratioCountsMap = new Map();
+      const sectionMediaMap = new Map();
+
+      for (const el of mediaEls) {
+        if (el.closest('[inert]')) continue;
+        const ms = getComputedStyle(el);
+        if (ms.display === 'none' || ms.visibility === 'hidden' || parseFloat(ms.opacity) < 0.05) continue;
+        const mr = el.getBoundingClientRect();
+        if (mr.width < 24 || mr.height < 24) continue;
+
+        const tag = el.tagName.toLowerCase();
+        const widthPx = Math.round(mr.width);
+        const heightPx = Math.round(mr.height);
+        const aspectRatio = normalizeAspectRatio(mr.width, mr.height);
+        const compHost = el.closest('[data-unslop-comp]');
+        const sectionIndex = compHost ? Number(compHost.getAttribute('data-unslop-comp')) : null;
+        const sectionArchetype =
+          sectionIndex !== null && pickedComponents[sectionIndex] ? pickedComponents[sectionIndex].data.archetype : null;
+
+        if (byType[tag] !== undefined) byType[tag]++;
+        ratioCountsMap.set(aspectRatio, (ratioCountsMap.get(aspectRatio) || 0) + 1);
+
+        if (sectionIndex !== null) {
+          if (!sectionMediaMap.has(sectionIndex)) {
+            sectionMediaMap.set(sectionIndex, {
+              sectionIndex,
+              archetype: sectionArchetype,
+              mediaCount: 0,
+              ratios: {},
+              slots: [],
+            });
+          }
+          const secEntry = sectionMediaMap.get(sectionIndex);
+          secEntry.mediaCount++;
+          secEntry.ratios[aspectRatio] = (secEntry.ratios[aspectRatio] || 0) + 1;
+          if (secEntry.slots.length < 12) {
+            secEntry.slots.push({ tag, aspectRatio, widthPx, heightPx });
+          }
+        }
+
+        if (mediaItems.length < 40) {
+          const entry = {
+            tag,
+            widthPx,
+            heightPx,
+            aspectRatio,
+            rawRatio: Number((mr.width / mr.height).toFixed(2)),
+            objectFit: ms.objectFit && ms.objectFit !== 'fill' ? ms.objectFit : null,
+            sectionIndex,
+            sectionArchetype,
+          };
+          if (tag === 'img') {
+            entry.naturalWidth = el.naturalWidth || 0;
+            entry.naturalHeight = el.naturalHeight || 0;
+            const alt = (el.getAttribute('alt') || '').trim().slice(0, 60);
+            if (alt) entry.alt = alt;
+          }
+          mediaItems.push(entry);
+        }
+      }
+
+      const countsByRatio = Object.fromEntries(Array.from(ratioCountsMap.entries()).sort((a, b) => b[1] - a[1]));
+      const mediaInventory = {
+        totalCount: byType.img + byType.video + byType.canvas,
+        byType,
+        countsByRatio,
+        bySection: Array.from(sectionMediaMap.values()).sort((a, b) => a.sectionIndex - b.sectionIndex),
+        items: mediaItems,
+      };
 
       const canvases = queryAllDeep(document.body, 'canvas', 40);
       const largeCanvases = canvases.filter((c) => {
@@ -976,6 +1944,9 @@ export async function inspectSite(url, outputDir) {
           boxShadows: topBuckets(shadowMap, 6),
         },
         sections: pickedComponents.map((c) => c.data),
+        revealSectionIndexMap,
+        desktopSectionLayoutMeta,
+        mediaInventory,
         motion: {
           keyframes: Array.from(keyframes).slice(0, 30),
           transitions: topBuckets(transitionMap, 10).map((t) => ({ rule: t.value, count: t.areaPx })),
@@ -1096,10 +2067,75 @@ export async function inspectSite(url, outputDir) {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(150);
     const hoverDeltas = await probeHoverStates(page);
+    const interactiveStates = await probeInteractiveStates(page);
 
     await page.setViewportSize({ width: 390, height: 844 });
+    await page.evaluate(() => window.scrollTo({ top: 0, left: 0, behavior: 'instant' }));
     await page.waitForTimeout(250);
     await page.screenshot({ path: path.join(outDir, 'mobile-top.png') });
+
+    const mobileTelemetry = await analyzeMobileCollapse(page, domAnalysis.desktopSectionLayoutMeta);
+    await page
+      .evaluate(() => {
+        for (const el of document.querySelectorAll('[data-unslop-layout-target]')) {
+          el.removeAttribute('data-unslop-layout-target');
+        }
+      })
+      .catch(() => {});
+    const mobileDocHeight = mobileTelemetry.collapseSummary.mobileDocHeight;
+    const MOBILE_FULL_HEIGHT_CAP = 12000;
+    const MOBILE_FALLBACK_CAP = 8000;
+    let mobileFullCaptured = false;
+    let mobileFullCapped = false;
+    try {
+      if (mobileDocHeight <= MOBILE_FULL_HEIGHT_CAP) {
+        try {
+          await page.screenshot({
+            path: path.join(outDir, 'mobile-full.png'),
+            fullPage: true,
+            timeout: 10000,
+          });
+        } catch {
+          mobileFullCapped = true;
+          await page.screenshot({
+            path: path.join(outDir, 'mobile-full.png'),
+            fullPage: true,
+            clip: { x: 0, y: 0, width: 390, height: Math.min(mobileDocHeight, MOBILE_FALLBACK_CAP) },
+            timeout: 10000,
+          });
+        }
+      } else {
+        mobileFullCapped = true;
+        try {
+          await page.screenshot({
+            path: path.join(outDir, 'mobile-full.png'),
+            fullPage: true,
+            clip: { x: 0, y: 0, width: 390, height: MOBILE_FULL_HEIGHT_CAP },
+            timeout: 10000,
+          });
+        } catch {
+          await page.screenshot({
+            path: path.join(outDir, 'mobile-full.png'),
+            fullPage: true,
+            clip: { x: 0, y: 0, width: 390, height: MOBILE_FALLBACK_CAP },
+            timeout: 10000,
+          });
+        }
+      }
+      mobileFullCaptured = true;
+    } catch {
+      mobileFullCaptured = false;
+    }
+
+    const entranceReveals = rawEntranceReveals.map((r) => {
+      const mappedIdx = domAnalysis.revealSectionIndexMap?.[String(r.revealId)];
+      return {
+        sectionIndex: typeof mappedIdx === 'number' ? mappedIdx : r.revealId,
+        tag: r.tag,
+        revealedCount: r.revealedCount,
+        sampleTransitions: r.sampleTransitions,
+      };
+    });
 
     // Merge CSS motion + fallback :root vars parsed from network responses + inline/shadow styles
     const mergedKeyframes = [];
@@ -1214,6 +2250,14 @@ export async function inspectSite(url, outputDir) {
       cssVariables: mergedCssVars,
       customElements: domAnalysis.customElements,
       interactiveSurfaces: domAnalysis.interactiveSurfaces,
+      interactiveStates,
+      mediaInventory: domAnalysis.mediaInventory,
+      mobile: {
+        viewport: { width: 390, height: 844 },
+        docOverflowPx: mobileTelemetry.docOverflowPx,
+        fullScreenshotCapped: mobileFullCapped,
+        collapseSummary: mobileTelemetry.collapseSummary,
+      },
       gpuShaders: {
         file: domAnalysis.capturedShaders.length > 0 ? 'shaders.json' : null,
         shaderCount: domAnalysis.capturedShaders.length,
@@ -1243,12 +2287,14 @@ export async function inspectSite(url, outputDir) {
         easings: [...mergedEasings],
         activeAnimationsCount: domAnalysis.activeAnimations.length,
         hoverDeltas,
+        entranceReveals,
       },
       screenshots: {
         desktopTop: 'desktop-top.png',
         desktopMid: scrollHeight > 1200 ? 'desktop-mid.png' : null,
         desktopFull: 'desktop-full.png',
         mobileTop: 'mobile-top.png',
+        mobileFull: mobileFullCaptured ? 'mobile-full.png' : null,
       },
     };
 
@@ -1284,6 +2330,10 @@ if (isMain) {
         sectionsExtracted: report.sections?.length || 0,
         gpuShadersCaptured: report.gpuShaders?.shaderCount || 0,
         scrollTimelinesCaptured: report.motion?.scrollTimelinesCount || 0,
+        interactiveStatesProbed: report.interactiveStates?.length || 0,
+        entranceRevealsProbed: report.motion?.entranceReveals?.length || 0,
+        mediaItemsCataloged: report.mediaInventory?.totalCount || 0,
+        mobileCollapseSummary: report.mobile?.collapseSummary || null,
         componentPngs: report.sections?.filter((s) => s.screenshot).map((s) => s.screenshot) || [],
         filmstripFrames: report.sections?.flatMap((s) => s.filmstrip || []) || [],
         limitations: report.limitations?.notes || [report.meta.blockReason],

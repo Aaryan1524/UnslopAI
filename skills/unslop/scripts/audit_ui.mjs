@@ -205,6 +205,571 @@ async function probeKeyboardFocus(page, screenshotPath) {
   return tabResults;
 }
 
+async function runContrastAudit(page) {
+  return page.evaluate(() => {
+    const isHiddenOrInert = (el) => {
+      let cur = el;
+      while (cur && cur.nodeType === Node.ELEMENT_NODE) {
+        if (cur.hasAttribute('inert') || cur.getAttribute('aria-hidden') === 'true') return true;
+        const s = getComputedStyle(cur);
+        if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.05) return true;
+        cur = cur.parentElement;
+      }
+      return false;
+    };
+
+    const isSrOnly = (el, r, s) =>
+      (r.width <= 2 && r.height <= 2) ||
+      (s.clip && s.clip.includes('0px, 0px, 0px, 0px')) ||
+      (s.clipPath && s.clipPath.includes('inset(50%)'));
+
+    const colorCanvas = document.createElement('canvas');
+    colorCanvas.width = 1;
+    colorCanvas.height = 1;
+    const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
+
+    const parseRgba = (str) => {
+      if (!str || str === 'transparent') return [0, 0, 0, 0];
+      if (/\s*\/\s*0(?:\.0+)?\s*\)/.test(str)) return [0, 0, 0, 0];
+      const m = str.match(/rgba?\(([^)]+)\)/);
+      if (m && !m[1].includes('%')) {
+        const p = m[1].split(/[\s,/]+/).filter(Boolean).map((v) => parseFloat(v));
+        return [p[0], p[1], p[2], p.length >= 4 ? p[3] : 1];
+      }
+      if (colorCtx) {
+        colorCtx.clearRect(0, 0, 1, 1);
+        colorCtx.fillStyle = '#000000';
+        colorCtx.fillStyle = str;
+        colorCtx.fillRect(0, 0, 1, 1);
+        const d = colorCtx.getImageData(0, 0, 1, 1).data;
+        return [d[0], d[1], d[2], Number((d[3] / 255).toFixed(3))];
+      }
+      return null;
+    };
+
+    const compositeOver = (fg, bg) => {
+      const a = fg[3];
+      return [
+        fg[0] * a + bg[0] * (1 - a),
+        fg[1] * a + bg[1] * (1 - a),
+        fg[2] * a + bg[2] * (1 - a),
+        1,
+      ];
+    };
+
+    const luminance = ([r, g, b]) => {
+      const toLin = (c) => {
+        const s = c / 255;
+        return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
+      };
+      return 0.2126 * toLin(r) + 0.7152 * toLin(g) + 0.0722 * toLin(b);
+    };
+
+    const contrastRatio = (c1, c2) => {
+      const l1 = luminance(c1);
+      const l2 = luminance(c2);
+      return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
+    };
+
+    const resolveBg = (el) => {
+      const chain = [];
+      let cur = el;
+      let hasGradientOrImg = false;
+      while (cur && cur.nodeType === Node.ELEMENT_NODE) {
+        const s = getComputedStyle(cur);
+        if (s.backgroundImage && s.backgroundImage !== 'none') {
+          hasGradientOrImg = true;
+        }
+        const bg = parseRgba(s.backgroundColor);
+        if (bg && bg[3] > 0.01) chain.unshift(bg);
+        if (bg && bg[3] >= 0.99) break;
+        cur = cur.parentElement;
+      }
+      if (!hasGradientOrImg && chain.length <= 1) {
+        const r = el.getBoundingClientRect();
+        if (r.top >= 0 && r.left >= 0 && r.top < window.innerHeight && r.left < window.innerWidth) {
+          const stack = document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2);
+          const idxSelf = stack.indexOf(el);
+          const behind = idxSelf >= 0 ? stack.slice(idxSelf + 1) : stack;
+          if (behind.some((b) => b.tagName === 'CANVAS' || b.tagName === 'IMG' || b.tagName === 'VIDEO')) {
+            hasGradientOrImg = true;
+          }
+        }
+      }
+      let acc = [255, 255, 255, 1];
+      for (const layer of chain) acc = compositeOver(layer, acc);
+      return { rgb: acc, hasGradientOrImg };
+    };
+
+    const contrastFailures = [];
+    let contrastSkippedOverMediaCount = 0;
+    const textEls = Array.from(document.querySelectorAll('h1,h2,h3,h4,h5,h6,p,span,a,button,label,li,td,th,small'));
+    for (const el of textEls.slice(0, 1200)) {
+      if (isHiddenOrInert(el)) continue;
+      const s = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2 || isSrOnly(el, r, s)) continue;
+
+      const hasDirectText = Array.from(el.childNodes).some(
+        (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0,
+      );
+      if (!hasDirectText) continue;
+
+      const fg = parseRgba(s.color);
+      const { rgb: bg, hasGradientOrImg } = resolveBg(el);
+      if (fg && hasGradientOrImg) {
+        contrastSkippedOverMediaCount++;
+      } else if (fg) {
+        const compositedFg = compositeOver(fg, bg);
+        const ratio = contrastRatio(compositedFg, bg);
+        const fsPx = parseFloat(s.fontSize);
+        const fw = parseInt(s.fontWeight, 10) || 400;
+        const isLarge = fsPx >= 24 || (fsPx >= 18.66 && fw >= 700);
+        const minRequired = isLarge ? 3.0 : 4.5;
+        if (ratio < minRequired && contrastFailures.length < 12) {
+          contrastFailures.push({
+            tag: el.tagName.toLowerCase(),
+            text: el.textContent.trim().slice(0, 40),
+            ratio: Number(ratio.toFixed(2)),
+            required: minRequired,
+            fg: s.color,
+            resolvedBg: `rgb(${Math.round(bg[0])}, ${Math.round(bg[1])}, ${Math.round(bg[2])})`,
+          });
+        }
+      }
+    }
+
+    return { contrastFailures, contrastSkippedOverMediaCount };
+  });
+}
+
+async function probeReducedMotionToggle(page, canvasChecks) {
+  const toggleInfo = await page.evaluate(() => {
+    const isHiddenOrInert = (el) => {
+      let cur = el;
+      while (cur && cur.nodeType === Node.ELEMENT_NODE) {
+        if (cur.hasAttribute('inert') || cur.getAttribute('aria-hidden') === 'true') return true;
+        const s = getComputedStyle(cur);
+        if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.05) return true;
+        cur = cur.parentElement;
+      }
+      return false;
+    };
+
+    const MOTION_TEXT_RE = /^motion\s*(on|off|:\s*full|:\s*reduced)/i;
+    for (const el of document.querySelectorAll('button, [role="button"]')) {
+      if (isHiddenOrInert(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+      const aria = (el.getAttribute('aria-label') || '').trim();
+      const id = (el.id || '').trim();
+      const text = (el.innerText || '').trim();
+      const matches =
+        /motion/i.test(aria) ||
+        /motion/i.test(id) ||
+        MOTION_TEXT_RE.test(text);
+      if (matches) {
+        el.setAttribute('data-unslop-motion-toggle', '1');
+        return {
+          found: true,
+          label: (text || aria || id || 'motion-toggle').slice(0, 50),
+        };
+      }
+    }
+    return { found: false };
+  });
+
+  if (!toggleInfo.found) {
+    return { found: false, tested: false };
+  }
+
+  const animatedCanvas = canvasChecks.find((c) => !c.isBlank && c.animatesOverTime);
+  if (!animatedCanvas) {
+    await page
+      .evaluate(() => {
+        for (const el of document.querySelectorAll('[data-unslop-motion-toggle]')) {
+          el.removeAttribute('data-unslop-motion-toggle');
+        }
+      })
+      .catch(() => {});
+    return {
+      found: true,
+      tested: false,
+      label: toggleInfo.label,
+      reason: 'No visible animated canvas detected',
+    };
+  }
+
+  const getRootSnapshot = () =>
+    page.evaluate(() => {
+      const pickAttrs = (el) =>
+        Array.from(el.attributes)
+          .filter((a) => a.name === 'class' || a.name.startsWith('data-'))
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((a) => `${a.name}=${a.value}`)
+          .join(';');
+      const btn = document.querySelector('[data-unslop-motion-toggle="1"]');
+      return {
+        htmlSig: pickAttrs(document.documentElement),
+        bodySig: document.body ? pickAttrs(document.body) : '',
+        ariaPressed: btn ? btn.getAttribute('aria-pressed') : null,
+      };
+    });
+
+  let clicked = false;
+  try {
+    const btnLoc = page.locator('[data-unslop-motion-toggle="1"]').first();
+    const cLoc = page.locator('canvas').nth(animatedCanvas.index);
+    const before = await getRootSnapshot();
+
+    await btnLoc.click({ timeout: 2500 });
+    clicked = true;
+    await page.waitForTimeout(140);
+
+    const after = await getRootSnapshot();
+    const rootStateChanged = before.htmlSig !== after.htmlSig || before.bodySig !== after.bodySig;
+    const ariaPressedChanged = before.ariaPressed !== after.ariaPressed;
+
+    await cLoc.scrollIntoViewIfNeeded({ timeout: 2000 }).catch(() => {});
+    await page.waitForTimeout(100);
+
+    const frame0 = await sampleRawCanvasFrame(page, cLoc);
+    await page.waitForTimeout(350);
+    const frame1 = await sampleRawCanvasFrame(page, cLoc);
+    const canvasStoppedAnimating = frame0.dataUrl === frame1.dataUrl;
+
+    return {
+      found: true,
+      tested: true,
+      label: toggleInfo.label,
+      canvasIndex: animatedCanvas.index,
+      canvasStoppedAnimating,
+      rootStateChanged,
+      ariaPressedChanged,
+    };
+  } catch (err) {
+    return {
+      found: true,
+      tested: false,
+      label: toggleInfo.label,
+      error: String(err?.message || err).slice(0, 120),
+    };
+  } finally {
+    if (clicked) {
+      const tagged = page.locator('[data-unslop-motion-toggle="1"]').first();
+      if ((await tagged.count().catch(() => 0)) > 0) {
+        await tagged.click({ timeout: 2500 }).catch(() => {});
+      } else {
+        const fallback = page.locator('button[aria-label*="motion" i], button[id*="motion" i]').first();
+        if ((await fallback.count().catch(() => 0)) > 0) {
+          await fallback.click({ timeout: 2000 }).catch(() => {});
+        }
+      }
+      await page.waitForTimeout(140);
+    }
+    await page
+      .evaluate(() => {
+        for (const el of document.querySelectorAll('[data-unslop-motion-toggle]')) {
+          el.removeAttribute('data-unslop-motion-toggle');
+        }
+        if (document.activeElement && document.activeElement !== document.body) {
+          document.activeElement.blur?.();
+        }
+        window.scrollTo(0, 0);
+      })
+      .catch(() => {});
+    await page.waitForTimeout(100);
+  }
+}
+
+async function probeAlternateThemeContrast(page) {
+  const toggleInfo = await page.evaluate(() => {
+    const isHiddenOrInert = (el) => {
+      let cur = el;
+      while (cur && cur.nodeType === Node.ELEMENT_NODE) {
+        if (cur.hasAttribute('inert') || cur.getAttribute('aria-hidden') === 'true') return true;
+        const s = getComputedStyle(cur);
+        if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.05) return true;
+        cur = cur.parentElement;
+      }
+      return false;
+    };
+
+    const selector = [
+      'button[aria-label*="theme" i]',
+      'button[aria-label*="dark mode" i]',
+      'button[aria-label*="light mode" i]',
+      '[role="button"][aria-label*="theme" i]',
+      '[role="button"][aria-label*="dark mode" i]',
+      '[data-theme-toggle]',
+    ].join(', ');
+
+    for (const el of document.querySelectorAll(selector)) {
+      if (isHiddenOrInert(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+      el.setAttribute('data-unslop-theme-toggle', '1');
+      return {
+        found: true,
+        label: ((el.innerText || el.getAttribute('aria-label') || el.id || 'theme-toggle').trim()).slice(0, 50),
+      };
+    }
+    return { found: false };
+  });
+
+  if (!toggleInfo.found) {
+    return { found: false, toggled: false, contrastFailuresCount: 0, sampleFailures: [] };
+  }
+
+  const getThemeSig = () =>
+    page.evaluate(() => {
+      const pickAttrs = (el) =>
+        Array.from(el.attributes)
+          .filter((a) => a.name === 'class' || a.name.startsWith('data-'))
+          .sort((a, b) => a.name.localeCompare(b.name))
+          .map((a) => `${a.name}=${a.value}`)
+          .join(';');
+      const bs = document.body ? getComputedStyle(document.body) : null;
+      return `${pickAttrs(document.documentElement)}|${document.body ? pickAttrs(document.body) : ''}|${bs?.backgroundColor || ''}|${bs?.color || ''}`;
+    });
+
+  let clicked = false;
+  try {
+    const btnLoc = page.locator('[data-unslop-theme-toggle="1"]').first();
+    const beforeSig = await getThemeSig();
+
+    await btnLoc.click({ timeout: 2500 });
+    clicked = true;
+    await page.waitForTimeout(260);
+
+    const afterSig = await getThemeSig();
+    const { contrastFailures } = await runContrastAudit(page);
+
+    return {
+      found: true,
+      toggled: true,
+      label: toggleInfo.label,
+      themeChanged: beforeSig !== afterSig,
+      contrastFailuresCount: contrastFailures.length,
+      sampleFailures: contrastFailures.slice(0, 8),
+    };
+  } catch (err) {
+    return {
+      found: true,
+      toggled: false,
+      label: toggleInfo.label,
+      contrastFailuresCount: 0,
+      sampleFailures: [],
+      error: String(err?.message || err).slice(0, 120),
+    };
+  } finally {
+    if (clicked) {
+      const tagged = page.locator('[data-unslop-theme-toggle="1"]').first();
+      if ((await tagged.count().catch(() => 0)) > 0) {
+        await tagged.click({ timeout: 2500 }).catch(() => {});
+      } else {
+        const fallback = page
+          .locator(
+            'button[aria-label*="theme" i], button[aria-label*="dark mode" i], button[aria-label*="light mode" i], [role="button"][aria-label*="theme" i], [role="button"][aria-label*="dark mode" i], [role="button"][aria-label*="light mode" i], [data-theme-toggle]',
+          )
+          .first();
+        if ((await fallback.count().catch(() => 0)) > 0) {
+          await fallback.click({ timeout: 2000 }).catch(() => {});
+        }
+      }
+      await page.waitForTimeout(240);
+    }
+    await page
+      .evaluate(() => {
+        for (const el of document.querySelectorAll('[data-unslop-theme-toggle]')) {
+          el.removeAttribute('data-unslop-theme-toggle');
+        }
+        if (document.activeElement && document.activeElement !== document.body) {
+          document.activeElement.blur?.();
+        }
+        window.scrollTo(0, 0);
+      })
+      .catch(() => {});
+    await page.waitForTimeout(100);
+  }
+}
+
+async function probeInteractiveOverlays(page) {
+  const candidates = await page.evaluate(() => {
+    const isHiddenOrInert = (el) => {
+      let cur = el;
+      while (cur && cur.nodeType === Node.ELEMENT_NODE) {
+        if (cur.hasAttribute('inert') || cur.getAttribute('aria-hidden') === 'true') return true;
+        const s = getComputedStyle(cur);
+        if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.05) return true;
+        cur = cur.parentElement;
+      }
+      return false;
+    };
+
+    const selector = '[aria-haspopup="true"], [aria-haspopup="dialog"], [aria-haspopup="menu"], [aria-controls]';
+    const picked = [];
+    for (const el of document.querySelectorAll(selector)) {
+      if (picked.length >= 3) break;
+      if (isHiddenOrInert(el)) continue;
+      if (el.disabled || el.getAttribute('aria-disabled') === 'true') continue;
+
+      const tag = el.tagName.toLowerCase();
+      const role = (el.getAttribute('role') || '').toLowerCase();
+      if (role === 'tab') continue;
+      if (tag === 'input' && (el.type === 'submit' || el.type === 'reset')) continue;
+      if (tag === 'button') {
+        const btnType = (el.getAttribute('type') || '').toLowerCase();
+        if (btnType === 'submit' || btnType === 'reset' || (!btnType && Boolean(el.closest('form')))) continue;
+      }
+      if (tag === 'a') {
+        const href = (el.getAttribute('href') || '').trim();
+        const isOverlayAnchorButton =
+          role === 'button' && (el.hasAttribute('aria-controls') || el.hasAttribute('aria-haspopup'));
+        if (!isOverlayAnchorButton && (el.closest('nav') || (href && href !== '#' && role !== 'button'))) {
+          continue;
+        }
+      }
+
+      const r = el.getBoundingClientRect();
+      if (r.width < 2 || r.height < 2) continue;
+
+      const idx = picked.length;
+      el.setAttribute('data-unslop-overlay-trigger', String(idx));
+      picked.push({
+        index: idx,
+        tag,
+        label: ((el.innerText || el.getAttribute('aria-label') || el.getAttribute('title') || el.id || tag).trim()).slice(0, 50),
+        ariaHaspopup: el.getAttribute('aria-haspopup') || null,
+        ariaControls: el.getAttribute('aria-controls') || null,
+      });
+    }
+    return picked;
+  });
+
+  if (candidates.length === 0) return [];
+
+  const snapshotOverlayState = (idx, controlsId) =>
+    page.evaluate(
+      ({ triggerIdx, ctrlId }) => {
+        const isVis = (el) => {
+          if (!el) return false;
+          let cur = el;
+          while (cur && cur.nodeType === Node.ELEMENT_NODE) {
+            if (cur.hasAttribute('inert') || cur.getAttribute('aria-hidden') === 'true') return false;
+            const s = getComputedStyle(cur);
+            if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.05) return false;
+            cur = cur.parentElement;
+          }
+          const r = el.getBoundingClientRect();
+          return r.width > 2 && r.height > 2;
+        };
+
+        const trigger = document.querySelector(`[data-unslop-overlay-trigger="${triggerIdx}"]`);
+        const expanded = trigger ? trigger.getAttribute('aria-expanded') : null;
+        const controlledEl = ctrlId ? document.getElementById(ctrlId) : null;
+        const controlledVisible = controlledEl ? isVis(controlledEl) : false;
+
+        const panelNodes = new Set();
+        for (const p of document.querySelectorAll('[role="dialog"], [role="alertdialog"], [role="menu"], [role="listbox"], dialog[open], [data-state="open"]')) {
+          if (p !== trigger && isVis(p)) panelNodes.add(p);
+        }
+        try {
+          for (const p of document.querySelectorAll(':popover-open')) {
+            if (p !== trigger && isVis(p)) panelNodes.add(p);
+          }
+        } catch {
+          // :popover-open unsupported
+        }
+        return {
+          expanded,
+          controlledVisible,
+          openPanelCount: panelNodes.size,
+        };
+      },
+      { triggerIdx: idx, ctrlId: controlsId },
+    );
+
+  const results = [];
+  const startUrl = page.url();
+  try {
+    for (const cand of candidates) {
+      const loc = page.locator(`[data-unslop-overlay-trigger="${cand.index}"]`).first();
+      if ((await loc.count().catch(() => 0)) === 0) continue;
+      try {
+        const before = await snapshotOverlayState(cand.index, cand.ariaControls);
+        await loc.click({ timeout: 2000 });
+        await page.waitForTimeout(220);
+
+        if (page.url() !== startUrl) {
+          await page.goto(startUrl, { waitUntil: 'domcontentloaded', timeout: 8000 }).catch(() => {});
+          await page.waitForTimeout(200);
+          continue;
+        }
+
+        const afterOpen = await snapshotOverlayState(cand.index, cand.ariaControls);
+        const expandedFlippedToTrue = before.expanded !== 'true' && afterOpen.expanded === 'true';
+        const controlledBecameVisible = !before.controlledVisible && afterOpen.controlledVisible;
+        const panelAppeared = afterOpen.openPanelCount > before.openPanelCount;
+        const opened = expandedFlippedToTrue || controlledBecameVisible || panelAppeared;
+
+        let dismissedOnEscape = null;
+        if (opened) {
+          await page.keyboard.press('Escape');
+          await page.waitForTimeout(220);
+          const afterEsc = await snapshotOverlayState(cand.index, cand.ariaControls);
+
+          const expandedClosed = !expandedFlippedToTrue || afterEsc.expanded !== 'true';
+          const controlledClosed = !controlledBecameVisible || !afterEsc.controlledVisible;
+          const panelsClosed = !panelAppeared || afterEsc.openPanelCount <= before.openPanelCount;
+          dismissedOnEscape = expandedClosed && controlledClosed && panelsClosed;
+
+          if (!dismissedOnEscape) {
+            // Attempt graceful cleanup so subsequent checks run on a clean viewport
+            const closeBtn = page
+              .locator('[role="dialog"] button[aria-label*="close" i], dialog[open] button[aria-label*="close" i], [data-state="open"] button[aria-label*="close" i]')
+              .first();
+            if ((await closeBtn.count().catch(() => 0)) > 0) {
+              await closeBtn.click({ timeout: 1200 }).catch(() => {});
+            } else {
+              await loc.click({ timeout: 1200 }).catch(() => {});
+            }
+            await page.waitForTimeout(160);
+          }
+        }
+
+        results.push({
+          index: cand.index,
+          tag: cand.tag,
+          label: cand.label,
+          ariaHaspopup: cand.ariaHaspopup,
+          ariaControls: cand.ariaControls,
+          opened,
+          expandedFlippedToTrue,
+          panelAppeared: controlledBecameVisible || panelAppeared,
+          dismissedOnEscape,
+        });
+      } catch {
+        // Ignore transient click/visibility issues on individual overlay triggers
+      }
+    }
+  } finally {
+    await page
+      .evaluate(() => {
+        for (const el of document.querySelectorAll('[data-unslop-overlay-trigger]')) {
+          el.removeAttribute('data-unslop-overlay-trigger');
+        }
+        if (document.activeElement && document.activeElement !== document.body) {
+          document.activeElement.blur?.();
+        }
+        window.scrollTo(0, 0);
+      })
+      .catch(() => {});
+    await page.waitForTimeout(100);
+  }
+  return results;
+}
+
 export async function auditUI(url, outputDir) {
   const outDir = await ensureDir(outputDir);
   const sectionsDir = await ensureDir(path.join(outDir, 'sections'));
@@ -212,7 +777,7 @@ export async function auditUI(url, outputDir) {
   const context = await browser.newContext({ viewport: { width: 1440, height: 900 } });
   const page = await context.newPage();
 
-  // Force preserveDrawingBuffer:true on WebGL contexts so audit_ui can sample raw uncontaminated canvas frames
+  // Force preserveDrawingBuffer:true on WebGL contexts + observe real CLS layout-shift entries before navigation
   await page.addInitScript(() => {
     const origGetContext = HTMLCanvasElement.prototype.getContext;
     HTMLCanvasElement.prototype.getContext = function (type, attrs) {
@@ -221,6 +786,29 @@ export async function auditUI(url, outputDir) {
       }
       return origGetContext.call(this, type, attrs);
     };
+
+    window.__unslopPerf = { cls: 0, layoutShiftCount: 0, entries: [] };
+    try {
+      if (typeof PerformanceObserver !== 'undefined') {
+        const po = new PerformanceObserver((list) => {
+          for (const entry of list.getEntries()) {
+            if (!entry.hadRecentInput && typeof entry.value === 'number') {
+              window.__unslopPerf.cls += entry.value;
+              window.__unslopPerf.layoutShiftCount++;
+              if (window.__unslopPerf.entries.length < 10) {
+                window.__unslopPerf.entries.push({
+                  value: Number(entry.value.toFixed(4)),
+                  startTime: Math.round(entry.startTime),
+                });
+              }
+            }
+          }
+        });
+        po.observe({ type: 'layout-shift', buffered: true });
+      }
+    } catch {
+      // layout-shift observer unsupported
+    }
   });
 
   const FONT_CDN_HOSTS = [
@@ -237,6 +825,9 @@ export async function auditUI(url, outputDir) {
   const pageErrors = [];
   const failedRequests = [];
   const offlineBlockedFontUrls = [];
+  const oversizedImagesMap = new Map();
+  const pendingImageSizeChecks = [];
+  const OVERSIZED_IMAGE_BYTES = 500_000;
 
   page.on('console', (msg) => {
     if (msg.type() === 'error') {
@@ -257,8 +848,44 @@ export async function auditUI(url, outputDir) {
     pageErrors.push(String(err?.message || err).slice(0, 300));
   });
   page.on('response', (res) => {
-    if (res.status() >= 400 && !res.url().includes('favicon.ico')) {
-      failedRequests.push({ url: res.url(), status: res.status() });
+    const status = res.status();
+    const resUrl = res.url();
+    if (status >= 400 && !resUrl.includes('favicon.ico')) {
+      failedRequests.push({ url: resUrl, status });
+      return;
+    }
+    if (status >= 200 && status < 300 && !resUrl.startsWith('data:')) {
+      const reqType = res.request()?.resourceType?.() || '';
+      const headers = res.headers();
+      const contentType = headers['content-type'] || '';
+      if (reqType === 'image' || contentType.toLowerCase().startsWith('image/')) {
+        const recordIfOversized = (bytes) => {
+          if (bytes > OVERSIZED_IMAGE_BYTES) {
+            const prev = oversizedImagesMap.get(resUrl);
+            if (!prev || bytes > prev.bytes) {
+              oversizedImagesMap.set(resUrl, {
+                url: resUrl.slice(0, 200),
+                bytes,
+                kb: Math.round(bytes / 1024),
+                contentType: contentType.split(';')[0].trim() || null,
+              });
+            }
+          }
+        };
+        const clHeader = parseInt(headers['content-length'] || '', 10);
+        if (Number.isFinite(clHeader) && clHeader > 0) {
+          recordIfOversized(clHeader);
+        } else {
+          pendingImageSizeChecks.push(
+            res
+              .body()
+              .then((buf) => {
+                if (buf) recordIfOversized(buf.byteLength);
+              })
+              .catch(() => {}),
+          );
+        }
+      }
     }
   });
   page.on('requestfailed', (req) => {
@@ -303,6 +930,16 @@ export async function auditUI(url, outputDir) {
       await page.evaluate(() => window.scrollTo(0, 0));
       await page.waitForTimeout(220);
     }
+
+    // Snapshot real CLS after initial load + hydration scroll, before test instrumentation/resizes
+    const perfMetrics = await page.evaluate(() => {
+      const p = window.__unslopPerf || { cls: 0, layoutShiftCount: 0, entries: [] };
+      return {
+        cls: Number((p.cls || 0).toFixed(4)),
+        layoutShiftCount: p.layoutShiftCount || 0,
+        layoutShiftEntries: Array.isArray(p.entries) ? p.entries : [],
+      };
+    });
 
     await page.screenshot({ path: path.join(outDir, 'desktop.png') });
     await page.screenshot({ path: path.join(outDir, 'desktop-full.png'), fullPage: true });
@@ -524,6 +1161,10 @@ export async function auditUI(url, outputDir) {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(150);
 
+    const reducedMotionToggleCheck = await probeReducedMotionToggle(page, canvasChecks);
+
+    const primaryContrast = await runContrastAudit(page);
+
     const domAudit = await page.evaluate(() => {
       const SYSTEM_FONTS = new Set([
         'system-ui', '-apple-system', 'blinkmacsystemfont', 'segoe ui', 'roboto',
@@ -549,85 +1190,6 @@ export async function auditUI(url, outputDir) {
         (r.width <= 2 && r.height <= 2) ||
         (s.clip && s.clip.includes('0px, 0px, 0px, 0px')) ||
         (s.clipPath && s.clipPath.includes('inset(50%)'));
-
-      const colorCanvas = document.createElement('canvas');
-      colorCanvas.width = 1;
-      colorCanvas.height = 1;
-      const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
-
-      const parseRgba = (str) => {
-        if (!str || str === 'transparent') return [0, 0, 0, 0];
-        if (/\s*\/\s*0(?:\.0+)?\s*\)/.test(str)) return [0, 0, 0, 0];
-        const m = str.match(/rgba?\(([^)]+)\)/);
-        if (m && !m[1].includes('%')) {
-          const p = m[1].split(/[\s,/]+/).filter(Boolean).map((v) => parseFloat(v));
-          return [p[0], p[1], p[2], p.length >= 4 ? p[3] : 1];
-        }
-        if (colorCtx) {
-          colorCtx.clearRect(0, 0, 1, 1);
-          colorCtx.fillStyle = '#000000';
-          colorCtx.fillStyle = str;
-          colorCtx.fillRect(0, 0, 1, 1);
-          const d = colorCtx.getImageData(0, 0, 1, 1).data;
-          return [d[0], d[1], d[2], Number((d[3] / 255).toFixed(3))];
-        }
-        return null;
-      };
-
-      const compositeOver = (fg, bg) => {
-        const a = fg[3];
-        return [
-          fg[0] * a + bg[0] * (1 - a),
-          fg[1] * a + bg[1] * (1 - a),
-          fg[2] * a + bg[2] * (1 - a),
-          1,
-        ];
-      };
-
-      const luminance = ([r, g, b]) => {
-        const toLin = (c) => {
-          const s = c / 255;
-          return s <= 0.03928 ? s / 12.92 : ((s + 0.055) / 1.055) ** 2.4;
-        };
-        return 0.2126 * toLin(r) + 0.7152 * toLin(g) + 0.0722 * toLin(b);
-      };
-
-      const contrastRatio = (c1, c2) => {
-        const l1 = luminance(c1);
-        const l2 = luminance(c2);
-        return (Math.max(l1, l2) + 0.05) / (Math.min(l1, l2) + 0.05);
-      };
-
-      const resolveBg = (el) => {
-        const chain = [];
-        let cur = el;
-        let hasGradientOrImg = false;
-        while (cur && cur.nodeType === Node.ELEMENT_NODE) {
-          const s = getComputedStyle(cur);
-          if (s.backgroundImage && s.backgroundImage !== 'none') {
-            hasGradientOrImg = true;
-          }
-          const bg = parseRgba(s.backgroundColor);
-          if (bg && bg[3] > 0.01) chain.unshift(bg);
-          if (bg && bg[3] >= 0.99) break;
-          cur = cur.parentElement;
-        }
-        // Check if an opaque media/canvas layer sits directly behind transparent hero text via elementsFromPoint
-        if (!hasGradientOrImg && chain.length <= 1) {
-          const r = el.getBoundingClientRect();
-          if (r.top >= 0 && r.left >= 0 && r.top < window.innerHeight && r.left < window.innerWidth) {
-            const stack = document.elementsFromPoint(r.left + r.width / 2, r.top + r.height / 2);
-            const idxSelf = stack.indexOf(el);
-            const behind = idxSelf >= 0 ? stack.slice(idxSelf + 1) : stack;
-            if (behind.some((b) => b.tagName === 'CANVAS' || b.tagName === 'IMG' || b.tagName === 'VIDEO')) {
-              hasGradientOrImg = true;
-            }
-          }
-        }
-        let acc = [255, 255, 255, 1];
-        for (const layer of chain) acc = compositeOver(layer, acc);
-        return { rgb: acc, hasGradientOrImg };
-      };
 
       const brokenImages = [];
       for (const img of document.querySelectorAll('img')) {
@@ -664,8 +1226,6 @@ export async function auditUI(url, outputDir) {
         }
       }
 
-      const contrastFailures = [];
-      let contrastSkippedOverMediaCount = 0;
       const clippedText = [];
       const unnamedControls = [];
       const gradientElements = [];
@@ -681,45 +1241,21 @@ export async function auditUI(url, outputDir) {
           (n) => n.nodeType === Node.TEXT_NODE && n.textContent.trim().length > 0,
         );
 
-        if (hasDirectText) {
-          const fg = parseRgba(s.color);
-          const { rgb: bg, hasGradientOrImg } = resolveBg(el);
-          if (fg && hasGradientOrImg) {
-            contrastSkippedOverMediaCount++;
-          } else if (fg) {
-            const compositedFg = compositeOver(fg, bg);
-            const ratio = contrastRatio(compositedFg, bg);
-            const fsPx = parseFloat(s.fontSize);
-            const fw = parseInt(s.fontWeight, 10) || 400;
-            const isLarge = fsPx >= 24 || (fsPx >= 18.66 && fw >= 700);
-            const minRequired = isLarge ? 3.0 : 4.5;
-            if (ratio < minRequired && contrastFailures.length < 12) {
-              contrastFailures.push({
-                tag: el.tagName.toLowerCase(),
-                text: el.textContent.trim().slice(0, 40),
-                ratio: Number(ratio.toFixed(2)),
-                required: minRequired,
-                fg: s.color,
-                resolvedBg: `rgb(${Math.round(bg[0])}, ${Math.round(bg[1])}, ${Math.round(bg[2])})`,
-              });
-            }
-          }
-
-          if (
-            s.overflow === 'hidden' &&
-            s.textOverflow !== 'ellipsis' &&
-            (el.scrollHeight > el.clientHeight + 3 || el.scrollWidth > el.clientWidth + 3) &&
-            clippedText.length < 8
-          ) {
-            clippedText.push({
-              tag: el.tagName.toLowerCase(),
-              text: el.textContent.trim().slice(0, 40),
-              scrollWidth: el.scrollWidth,
-              clientWidth: el.clientWidth,
-              scrollHeight: el.scrollHeight,
-              clientHeight: el.clientHeight,
-            });
-          }
+        if (
+          hasDirectText &&
+          s.overflow === 'hidden' &&
+          s.textOverflow !== 'ellipsis' &&
+          (el.scrollHeight > el.clientHeight + 3 || el.scrollWidth > el.clientWidth + 3) &&
+          clippedText.length < 8
+        ) {
+          clippedText.push({
+            tag: el.tagName.toLowerCase(),
+            text: el.textContent.trim().slice(0, 40),
+            scrollWidth: el.scrollWidth,
+            clientWidth: el.clientWidth,
+            scrollHeight: el.scrollHeight,
+            clientHeight: el.clientHeight,
+          });
         }
       }
 
@@ -739,6 +1275,104 @@ export async function auditUI(url, outputDir) {
           unnamedControls.push({ tag: ctrl.tagName.toLowerCase(), className: String(ctrl.className || '').slice(0, 40) });
         }
       }
+
+      // Semantic link, metadata, and heading hierarchy hygiene
+      const brokenAnchors = [];
+      const deadPlaceholderLinks = [];
+      for (const a of document.querySelectorAll('a[href^="#"]')) {
+        if (isHiddenOrInert(a)) continue;
+        const href = (a.getAttribute('href') || '').trim();
+        const label = (a.innerText || a.getAttribute('aria-label') || a.getAttribute('title') || '').trim().slice(0, 50);
+        if (href === '#') {
+          const isInteractiveButtonHint =
+            a.getAttribute('role') === 'button' ||
+            a.hasAttribute('onclick') ||
+            typeof a.onclick === 'function' ||
+            a.hasAttribute('aria-controls') ||
+            a.hasAttribute('aria-haspopup') ||
+            a.hasAttribute('aria-expanded') ||
+            a.hasAttribute('data-action') ||
+            a.hasAttribute('data-toggle') ||
+            a.hasAttribute('data-target') ||
+            a.hasAttribute('data-modal') ||
+            a.hasAttribute('data-drawer');
+          if (!isInteractiveButtonHint && deadPlaceholderLinks.length < 20) {
+            deadPlaceholderLinks.push({ href, text: label });
+          }
+          continue;
+        }
+        if (href.toLowerCase() === '#top') continue;
+        const rawId = href.slice(1);
+        let targetId = rawId;
+        try {
+          targetId = decodeURIComponent(rawId);
+        } catch {
+          // Keep rawId
+        }
+        if (!targetId) continue;
+        const target =
+          document.getElementById(targetId) ||
+          document.querySelector(`[name="${CSS.escape(targetId)}"]`);
+        if (!target && brokenAnchors.length < 20) {
+          brokenAnchors.push({ href, text: label });
+        }
+      }
+
+      const docTitle = (document.title || '').trim();
+      const metaDesc = (document.querySelector('meta[name="description" i]')?.getAttribute('content') || '').trim();
+      let h1Count = 0;
+      let headingCount = 0;
+      let prevHeadingLevel = 0;
+      const skippedHeadingLevels = [];
+      for (const h of document.querySelectorAll('h1, h2, h3, h4, h5, h6')) {
+        if (isHiddenOrInert(h)) continue;
+        const level = parseInt(h.tagName.slice(1), 10);
+        headingCount++;
+        if (level === 1) h1Count++;
+        if (prevHeadingLevel > 0 && level > prevHeadingLevel + 1 && skippedHeadingLevels.length < 12) {
+          skippedHeadingLevels.push({
+            from: `h${prevHeadingLevel}`,
+            to: `h${level}`,
+            text: (h.textContent || '').trim().slice(0, 50),
+          });
+        }
+        prevHeadingLevel = level;
+      }
+
+      // Header/footer fingerprint for multi-route shared chrome consistency checks
+      const extractLinks = (root, max) => {
+        if (!root) return [];
+        const links = [];
+        for (const a of root.querySelectorAll('a[href]')) {
+          if (isHiddenOrInert(a)) continue;
+          const text = (a.innerText || a.getAttribute('aria-label') || '').trim().replace(/\s+/g, ' ').slice(0, 40);
+          const href = (a.getAttribute('href') || '').trim();
+          links.push(`${text}|${href}`);
+          if (links.length >= max) break;
+        }
+        return links;
+      };
+      const headerEl =
+        Array.from(document.querySelectorAll('body > header, header, [role="banner"]')).find((el) => !isHiddenOrInert(el)) ||
+        Array.from(document.querySelectorAll('nav, [role="navigation"]')).find((el) => {
+          if (isHiddenOrInert(el) || el.closest('footer')) return false;
+          const r = el.getBoundingClientRect();
+          return r.top < 120 && r.height >= 24 && r.height <= 220;
+        }) ||
+        null;
+      const footerEl = Array.from(document.querySelectorAll('body > footer, footer')).find((el) => !isHiddenOrInert(el)) || null;
+      const chromeSignature = {
+        header: {
+          present: Boolean(headerEl),
+          navLinks: extractLinks(headerEl, 20),
+          height: headerEl ? Math.round(headerEl.getBoundingClientRect().height) : 0,
+        },
+        footer: {
+          present: Boolean(footerEl),
+          links: extractLinks(footerEl, 30),
+          textSample: footerEl ? (footerEl.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 120) : '',
+        },
+      };
 
       const bodyEl = (() => {
         let best = null;
@@ -791,10 +1425,19 @@ export async function auditUI(url, outputDir) {
         loadedFonts: Array.from(loadedSet),
         failedFonts,
         fontFallbackWarnings,
-        contrastFailures,
-        contrastSkippedOverMediaCount,
         clippedText,
         unnamedControls,
+        semantics: {
+          hasTitle: docTitle.length > 0,
+          title: docTitle.slice(0, 120),
+          hasMetaDescription: metaDesc.length > 0,
+          h1Count,
+          headingCount,
+          skippedHeadingLevels,
+          brokenAnchors,
+          deadPlaceholderLinks,
+        },
+        chromeSignature,
         antiSlop: {
           h1ToBodyRatio,
           purpleIndigoGradientCount: gradientElements.length,
@@ -803,6 +1446,12 @@ export async function auditUI(url, outputDir) {
         },
       };
     });
+
+    domAudit.contrastFailures = primaryContrast.contrastFailures;
+    domAudit.contrastSkippedOverMediaCount = primaryContrast.contrastSkippedOverMediaCount;
+
+    const alternateThemeContrast = await probeAlternateThemeContrast(page);
+    const interactiveOverlayChecks = await probeInteractiveOverlays(page);
 
     // Reconcile offline document-level console font errors only when no non-font requests failed
     if (offlineBlockedFontUrls.length === 0 || failedRequests.length > 0) {
@@ -919,12 +1568,23 @@ export async function auditUI(url, outputDir) {
     }
     const mobileOverlayCollisions = [...collisionsTop, ...collisionsMid];
 
+    if (pendingImageSizeChecks.length > 0) {
+      await Promise.race([
+        Promise.allSettled(pendingImageSizeChecks),
+        new Promise((resolve) => setTimeout(resolve, 1500)),
+      ]);
+    }
+    const oversizedImages = Array.from(oversizedImagesMap.values())
+      .sort((a, b) => b.bytes - a.bytes)
+      .slice(0, 20);
+
     const missingFocusCount = focusChecks.filter((f) => !f.visibleIndicator).length;
     const blankCanvases = canvasChecks.filter((c) => c.isBlank);
     const frozenCanvases = canvasChecks.filter((c) => !c.isBlank && !c.animatesOverTime);
     const staticStickyTracks = scrollMotionChecks.filter(
       (m) => m.hasStickyDescendants && !m.kineticChangesDetected && (m.height >= 2200 || m.hasKineticHints),
     );
+    const stuckOverlays = interactiveOverlayChecks.filter((o) => o.opened && !o.dismissedOnEscape);
     const criticalErrors = [];
 
     if (consoleErrors.length > 0) criticalErrors.push(`${consoleErrors.length} console error(s)`);
@@ -933,6 +1593,9 @@ export async function auditUI(url, outputDir) {
     if (domAudit.brokenImages.length > 0) criticalErrors.push(`${domAudit.brokenImages.length} broken image(s)`);
     if (blankCanvases.length > 0) criticalErrors.push(`${blankCanvases.length} blank/unrendered <canvas> element(s)`);
     if (domAudit.failedFonts.length > 0) criticalErrors.push(`${domAudit.failedFonts.length} failed font(s)`);
+    if (perfMetrics.cls > 0.25) {
+      criticalErrors.push(`High Cumulative Layout Shift (CLS = ${perfMetrics.cls}, threshold <= 0.25)`);
+    }
     if (desktopOverflow.docOverflowPx > 1) criticalErrors.push(`Desktop horizontal overflow (${desktopOverflow.docOverflowPx}px)`);
     if (tabletOverflow.docOverflowPx > 1) criticalErrors.push(`Tablet horizontal overflow (${tabletOverflow.docOverflowPx}px)`);
     if (mobileOverflow.docOverflowPx > 1) criticalErrors.push(`Mobile (390px) horizontal overflow (${mobileOverflow.docOverflowPx}px)`);
@@ -945,6 +1608,28 @@ export async function auditUI(url, outputDir) {
     }
 
     const warnings = [];
+    if (perfMetrics.cls > 0.1 && perfMetrics.cls <= 0.25) {
+      warnings.push(`Elevated Cumulative Layout Shift (CLS = ${perfMetrics.cls}, target <= 0.1)`);
+    }
+    if (oversizedImages.length > 0) {
+      warnings.push(`${oversizedImages.length} oversized image(s) exceeding 500KB (largest: ${oversizedImages[0].kb}KB)`);
+    }
+    if (!domAudit.semantics.hasTitle) {
+      warnings.push('Document is missing a non-empty <title>');
+    }
+    if (domAudit.semantics.headingCount > 0 && domAudit.semantics.h1Count !== 1) {
+      warnings.push(`Expected exactly 1 visible <h1> heading, found ${domAudit.semantics.h1Count}`);
+    }
+    if (domAudit.semantics.skippedHeadingLevels.length > 0) {
+      const first = domAudit.semantics.skippedHeadingLevels[0];
+      warnings.push(`${domAudit.semantics.skippedHeadingLevels.length} skipped heading level(s) (e.g., ${first.from} -> ${first.to})`);
+    }
+    if (domAudit.semantics.brokenAnchors.length > 0) {
+      warnings.push(`${domAudit.semantics.brokenAnchors.length} broken internal anchor link(s) pointing to missing target IDs`);
+    }
+    if (domAudit.semantics.deadPlaceholderLinks.length > 0) {
+      warnings.push(`${domAudit.semantics.deadPlaceholderLinks.length} dead placeholder link(s) with href="#"`);
+    }
     if (offlineBlockedFontUrls.length > 0) {
       warnings.push(`External webfont CDN unreachable offline (${offlineBlockedFontUrls.length} request(s)); verify fonts online too`);
     }
@@ -954,6 +1639,9 @@ export async function auditUI(url, outputDir) {
     if (frozenCanvases.length > 0) {
       warnings.push(`${frozenCanvases.length} large <canvas> element(s) showed zero pixel change over 420ms (verify animation or intentional static fallback)`);
     }
+    if (reducedMotionToggleCheck.found && reducedMotionToggleCheck.tested && !reducedMotionToggleCheck.canvasStoppedAnimating) {
+      warnings.push('Motion toggle button found, but animated <canvas> continued changing pixels after toggling');
+    }
     if (staticStickyTracks.length > 0) {
       warnings.push(`${staticStickyTracks.length} tall sticky section(s) showed no computed-style scroll changes across t0..t3`);
     }
@@ -962,6 +1650,12 @@ export async function auditUI(url, outputDir) {
     }
     if (mobileOverlayCollisions.length > 0) {
       warnings.push(`${mobileOverlayCollisions.length} floating fixed control(s) collide with mobile content`);
+    }
+    if (alternateThemeContrast.toggled && alternateThemeContrast.contrastFailuresCount > 0) {
+      warnings.push(`Alternate theme has ${alternateThemeContrast.contrastFailuresCount} WCAG AA contrast failure(s)`);
+    }
+    if (stuckOverlays.length > 0) {
+      warnings.push(`${stuckOverlays.length} interactive overlay(s) failed to dismiss cleanly on Escape`);
     }
     if (tabChecks.some((t) => !t.secondTabSelectedOnClick)) {
       warnings.push('One or more [role="tablist"] controls did not update aria-selected on click');
@@ -988,6 +1682,13 @@ export async function auditUI(url, outputDir) {
         criticalErrors,
         warnings,
       },
+      performance: {
+        cls: perfMetrics.cls,
+        layoutShiftCount: perfMetrics.layoutShiftCount,
+        layoutShiftEntries: perfMetrics.layoutShiftEntries,
+        oversizedImages,
+      },
+      semantics: domAudit.semantics,
       runtime: { consoleErrors, pageErrors, failedRequests, offlineBlockedFontUrls },
       mediaAndFonts: {
         brokenImages: domAudit.brokenImages,
@@ -999,6 +1700,7 @@ export async function auditUI(url, outputDir) {
       kinetic: {
         canvasChecks,
         scrollMotionChecks,
+        reducedMotionToggleCheck,
       },
       layout: {
         overflow: {
@@ -1010,10 +1712,13 @@ export async function auditUI(url, outputDir) {
         clippedText: domAudit.clippedText,
         lowOpacitySections,
         mobileOverlayCollisions,
+        chromeSignature: domAudit.chromeSignature,
       },
       accessibility: {
         contrastFailures: domAudit.contrastFailures,
         contrastSkippedOverMediaCount: domAudit.contrastSkippedOverMediaCount,
+        alternateThemeContrast,
+        interactiveOverlayChecks,
         unnamedControls: domAudit.unnamedControls,
         focusChecks,
         tabChecks,
@@ -1037,6 +1742,149 @@ export async function auditUI(url, outputDir) {
   }
 }
 
+function slugifyRoute(route, usedSlugs) {
+  const cleaned = String(route || '/')
+    .replace(/^https?:\/\/[^/]+/i, '')
+    .split(/[?#]/)[0]
+    .replace(/^\/+|\/+$/g, '');
+  let base = cleaned ? cleaned.replace(/[^a-zA-Z0-9_-]+/g, '__').slice(0, 64) : 'index';
+  if (!base || base === '.' || base === '..') base = 'index';
+  let slug = base;
+  let suffix = 2;
+  while (usedSlugs.has(slug)) {
+    slug = `${base}-${suffix++}`;
+  }
+  usedSlugs.add(slug);
+  return slug;
+}
+
+function resolveRouteUrl(baseUrl, route) {
+  const trimmed = String(route || '/').trim();
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  if (trimmed.startsWith('/')) {
+    return new URL(trimmed, baseUrl).href;
+  }
+  const normalizedBase = baseUrl.endsWith('/') ? baseUrl : `${baseUrl}/`;
+  return new URL(trimmed, normalizedBase).href;
+}
+
+export async function auditMultiRoute(baseUrl, routes, outputDir) {
+  const outDir = await ensureDir(outputDir);
+  const rawList = Array.isArray(routes) ? routes : String(routes || '/').split(',');
+  const routeList = rawList.map((r) => String(r).trim()).filter(Boolean);
+  const normalizedRoutes = routeList.length > 0 ? routeList : ['/'];
+
+  const usedSlugs = new Set();
+  const routeRecords = [];
+
+  for (const route of normalizedRoutes) {
+    const subDir = slugifyRoute(route, usedSlugs);
+    const routeUrl = resolveRouteUrl(baseUrl, route);
+    const routeOutDir = path.join(outDir, subDir);
+    try {
+      const report = await auditUI(routeUrl, routeOutDir);
+      routeRecords.push({
+        route,
+        url: routeUrl,
+        subDir,
+        blocked: Boolean(report.meta?.blocked),
+        passed: Boolean(report.summary?.passed),
+        criticalErrorCount: report.summary?.criticalErrorCount ?? 0,
+        warningCount: report.summary?.warningCount ?? 0,
+        criticalErrors: report.summary?.criticalErrors ?? [],
+        warnings: report.summary?.warnings ?? [],
+        cls: report.performance?.cls ?? null,
+        chromeSignature: report.layout?.chromeSignature ?? null,
+      });
+    } catch (err) {
+      const msg = String(err?.message || err).slice(0, 200);
+      routeRecords.push({
+        route,
+        url: routeUrl,
+        subDir,
+        blocked: false,
+        passed: false,
+        criticalErrorCount: 1,
+        warningCount: 0,
+        criticalErrors: [`Route audit failed: ${msg}`],
+        warnings: [],
+        cls: null,
+        chromeSignature: null,
+      });
+    }
+  }
+
+  // Shared header/footer consistency check across non-blocked routes with DOM telemetry
+  const comparable = routeRecords.filter((r) => !r.blocked && r.chromeSignature);
+  let headerConsistent = true;
+  let footerConsistent = true;
+  const inconsistencies = [];
+
+  if (comparable.length >= 2) {
+    const baseline = comparable[0];
+    const baseHeaderPresent = baseline.chromeSignature.header.present;
+    const baseHeaderLinks = JSON.stringify(baseline.chromeSignature.header.navLinks);
+    const baseFooterPresent = baseline.chromeSignature.footer.present;
+    const baseFooterLinks = JSON.stringify(baseline.chromeSignature.footer.links);
+    const baseFooterText = baseline.chromeSignature.footer.textSample;
+
+    for (const rec of comparable.slice(1)) {
+      const curHeader = rec.chromeSignature.header;
+      const curFooter = rec.chromeSignature.footer;
+      if (curHeader.present !== baseHeaderPresent) {
+        headerConsistent = false;
+        inconsistencies.push(
+          `Header presence mismatch on "${rec.route}" (present=${curHeader.present}) vs baseline "${baseline.route}" (present=${baseHeaderPresent})`,
+        );
+      } else if (baseHeaderPresent && JSON.stringify(curHeader.navLinks) !== baseHeaderLinks) {
+        headerConsistent = false;
+        inconsistencies.push(`Header navigation links on "${rec.route}" differ from baseline "${baseline.route}"`);
+      }
+
+      if (curFooter.present !== baseFooterPresent) {
+        footerConsistent = false;
+        inconsistencies.push(
+          `Footer presence mismatch on "${rec.route}" (present=${curFooter.present}) vs baseline "${baseline.route}" (present=${baseFooterPresent})`,
+        );
+      } else if (baseFooterPresent) {
+        const footerLinksDiffer = JSON.stringify(curFooter.links) !== baseFooterLinks;
+        const footerTextDiffers = baseline.chromeSignature.footer.links.length === 0 && curFooter.textSample !== baseFooterText;
+        if (footerLinksDiffer || footerTextDiffers) {
+          footerConsistent = false;
+          inconsistencies.push(`Footer content/links on "${rec.route}" differ from baseline "${baseline.route}"`);
+        }
+      }
+    }
+  }
+
+  const totalCriticalErrors = routeRecords.reduce((sum, r) => sum + r.criticalErrorCount, 0);
+  const totalWarnings = routeRecords.reduce((sum, r) => sum + r.warningCount, 0);
+
+  const consolidated = {
+    meta: {
+      baseUrl,
+      auditedAt: new Date().toISOString(),
+      routesRequested: normalizedRoutes,
+    },
+    passed: routeRecords.every((r) => r.passed),
+    routesAudited: routeRecords.length,
+    totalCriticalErrors,
+    totalWarnings,
+    sharedChromeConsistency: {
+      checked: comparable.length >= 2,
+      baselineRoute: comparable[0]?.route ?? null,
+      headerConsistent,
+      footerConsistent,
+      consistent: headerConsistent && footerConsistent,
+      inconsistencies,
+    },
+    routes: routeRecords.map(({ chromeSignature, ...summary }) => summary),
+  };
+
+  await fs.writeFile(path.join(outDir, 'multi-route-audit.json'), JSON.stringify(consolidated, null, 2));
+  return consolidated;
+}
+
 const isMain = (() => {
   if (!process.argv[1]) return false;
   try {
@@ -1047,14 +1895,49 @@ const isMain = (() => {
 })();
 
 if (isMain) {
-  const [, , targetUrl, outDir = './audit-out'] = process.argv;
+  const rawArgs = process.argv.slice(2);
+  const positional = [];
+  let routesArg = null;
+  for (let i = 0; i < rawArgs.length; i++) {
+    const arg = rawArgs[i];
+    if (arg === '--routes' && i + 1 < rawArgs.length) {
+      routesArg = rawArgs[++i];
+    } else if (arg.startsWith('--routes=')) {
+      routesArg = arg.slice('--routes='.length);
+    } else if (!arg.startsWith('--')) {
+      positional.push(arg);
+    }
+  }
+  const [targetUrl, outDir = './audit-out'] = positional;
   if (!targetUrl) {
-    console.error('Usage: node skills/unslop/scripts/audit_ui.mjs <url> [outputDir]');
+    console.error('Usage: node skills/unslop/scripts/audit_ui.mjs <url> [outputDir] [--routes /,/pricing,/about]');
     process.exit(1);
   }
-  const report = await auditUI(targetUrl, outDir);
-  console.log(JSON.stringify(report.summary, null, 2));
-  if (!report.summary.passed) {
-    process.exitCode = 1;
+  if (routesArg !== null) {
+    const routesList = routesArg.split(',').map((r) => r.trim()).filter(Boolean);
+    const multiReport = await auditMultiRoute(targetUrl, routesList, outDir);
+    console.log(
+      JSON.stringify(
+        {
+          passed: multiReport.passed,
+          routesAudited: multiReport.routesAudited,
+          totalCriticalErrors: multiReport.totalCriticalErrors,
+          totalWarnings: multiReport.totalWarnings,
+          sharedChromeConsistency: multiReport.sharedChromeConsistency,
+          routes: multiReport.routes,
+        },
+        null,
+        2,
+      ),
+    );
+    if (!multiReport.passed) {
+      process.exitCode = 1;
+    }
+  } else {
+    const report = await auditUI(targetUrl, outDir);
+    console.log(JSON.stringify(report.summary, null, 2));
+    if (!report.summary.passed) {
+      process.exitCode = 1;
+    }
   }
 }
