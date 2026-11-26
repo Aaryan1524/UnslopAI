@@ -279,7 +279,8 @@ try {
   assert.ok(cleanAudit.screenshots.desktopTiles?.length >= 1, 'Expected desktopTiles on clean audit');
   assert.ok(cleanAudit.screenshots.mobileTiles?.length >= 1, 'Expected mobileTiles on clean audit');
   const cleanChecklist = JSON.parse(await fs.readFile(path.join(outRoot, 'audit-clean', 'visual-critic-checklist.json'), 'utf8'));
-  for (const rubricKey of ['typographyCraft', 'deadSpaceAudit', 'microUiWrapping', 'rhythmAndMonotony', 'referenceFidelity', 'surfaceCohesion']) {
+  assert.equal(cleanChecklist.meta?.rubricScale, '7-axis-10-point', 'Expected 7-axis-10-point rubricScale');
+  for (const rubricKey of ['typographyCraft', 'deadSpaceAudit', 'microUiWrapping', 'rhythmAndMonotony', 'referenceFidelity', 'surfaceCohesion', 'sideBySideVisualLineage', 'copyEconomy']) {
     assert.ok(cleanChecklist[rubricKey], `Expected ${rubricKey} inside visual-critic-checklist.json`);
   }
 
@@ -528,7 +529,7 @@ try {
   assert.equal(multiMismatch.sharedChromeConsistency.headerConsistent, false, 'Expected headerConsistent: false');
   assert.ok(multiMismatch.sharedChromeConsistency.inconsistencies.length >= 1, 'Expected inconsistency details');
 
-  console.log('11) Verifying v1.3 extractReference + studioCraft defects & tiled Critic captures...');
+  console.log('11) Verifying v1.3/v1.4 extractReference (visualMotifs + copyDensity) + studioCraft defects & 7-axis Critic...');
   const refOutDir = path.join(outRoot, 'extract-ref-v11');
   const refTokens = await extractReference(`${baseUrl}/sample-v11-interactive.html`, refOutDir);
   assert.equal(refTokens.meta.blocked, false, 'Reference extraction on local fixture must not be blocked');
@@ -537,6 +538,9 @@ try {
   assert.ok(refTokens.geometryLock?.cardRadius, 'Expected measured cardRadius lock');
   assert.ok(refTokens.alignmentAudit?.sectionsAnalyzed >= 1, 'Expected alignmentAudit sections');
   assert.ok(refTokens.cssTokensSnippet?.includes('--ref-'), 'Expected generated --ref- CSS tokens snippet');
+  assert.ok(refTokens.visualMotifs && typeof refTokens.visualMotifs.hasDotOrGridBackground === 'boolean', 'Expected v1.4 visualMotifs telemetry');
+  assert.ok(['centered', 'left-aligned', 'split'].includes(refTokens.visualMotifs.heroAlignment), 'Expected visualMotifs.heroAlignment');
+  assert.ok(refTokens.copyDensity && ['minimal', 'balanced', 'editorial'].includes(refTokens.copyDensity.copyDensityTier), 'Expected v1.4 copyDensity telemetry');
   await fs.access(path.join(refOutDir, 'reference-tokens.json'));
 
   const scDefectsOut = path.join(outRoot, 'audit-studio-defects');

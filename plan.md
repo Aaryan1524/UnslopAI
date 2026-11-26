@@ -1,6 +1,6 @@
 # UnslopAI — Architecture & Release Roadmap (`plan.md`)
 
-> Living engineering roadmap for the **`unslop`** portable Agent Skill suite (`v1.3.0` current release and upcoming milestones).
+> Living engineering roadmap for the **`unslop`** portable Agent Skill suite (`v1.4.0` current release and upcoming milestones).
 
 ---
 
@@ -15,21 +15,21 @@ Build a single portable, standards-compliant Agent Skill (`skills/unslop/SKILL.m
 
 ---
 
-## 2. `v1.3.0` Adaptive Pipeline Architecture
+## 2. `v1.4.0` Visual-DNA & Adaptive Pipeline Architecture
 
 ```text
 User Request + Target Workspace + Optional Inspiration URL(s) / Screenshots
   └─▶ Phase 0: Silent Recon (doctor.mjs + detect_stack.mjs + inspect_site.mjs + extract_reference.mjs)
-               → Request-Specific Adaptive Q&A (grounded in reference-tokens.json & reconDigest)
-               → Lock `.unslop/brief.md` (+ Section Rhythm & Geometry Contract) + User Approval Gate
+               → Visual Screenshot Motif Audit + Dynamic Multi-Interval Q&A (1–10+ questions)
+               → Lock `.unslop/brief.md` (Visual DNA Manifest + Copy Economy + Two-Tier Contract)
         │
         ▼
       Execution Router (`fast` | `standard` | `deep` | `extract-component`)
-        ├─ Phase 1: Deep Forensic Review (reference-tokens.json, report.json, shaders.json, css-motion.json, crops)
+        ├─ Phase 1: Deep Forensic Review (reference-tokens.json, visualMotifs, copyDensity, shaders, crops)
         ├─ Phase 2: Translation Matrix + `.unslop/DESIGN.md` (type-pairings.md + craft-primitives.md) + `COMPONENTS.md`
         ├─ Phase 3: Wave 1 Foundation -> Wave 2 Parallel Disjoint Workers (pure nav <=5+1, anti-void, nowrap telemetry)
-        └─ Phase 4: Closed-Loop QA (`audit_ui.mjs --routes` + studioCraft checks)
-                 -> Pass-3 Visual Critic (`critic-desktop-*.png`, `critic-mobile-*.png`, >= 8/10 rubric) -> Polish Loop
+        └─ Phase 4: Closed-Loop QA (`audit_ui.mjs --routes` + studioCraft + copyEconomy checks)
+                 -> Pass-3 7-Axis Side-by-Side Visual Critic (reference vs. critic-desktop-*.png, >= 8/10) -> Polish Loop
 ```
 
 ---

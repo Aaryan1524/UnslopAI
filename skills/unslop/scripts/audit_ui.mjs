@@ -859,7 +859,7 @@ async function runStudioCraftAudit(page, sectionMeta, { allowGenericFonts = fals
         parseCornerPx(s.borderBottomLeftRadius),
       );
     const classifyRadiusTier = (px, height) => {
-      if (px >= 999 || (height > 0 && px >= height * 0.48 && px > 4)) return 'pill';
+      if (px >= 999 || (height > 0 && px >= height * 0.45 && px > 4)) return 'pill';
       if (px <= 4) return 'sharp';
       if (px <= 12) return 'medium';
       return 'large';
@@ -875,6 +875,7 @@ async function runStudioCraftAudit(page, sectionMeta, { allowGenericFonts = fals
     ]);
 
     const cardSamples = [];
+    const cardCandidateEls = [];
     const cardValueSet = new Set();
     const cardTierSet = new Set();
     const controlSamples = [];
@@ -882,6 +883,57 @@ async function runStudioCraftAudit(page, sectionMeta, { allowGenericFonts = fals
     const controlTierSet = new Set();
 
     const surfaceFreq = new Map();
+
+    const isStructuralBorderlessWrapper = (el, s, r, borderWidths, hasBoxBorder, hasShadow, radiusPx) => {
+      if (hasBoxBorder || hasShadow || radiusPx > 0) return false;
+      if (el.tagName === 'SECTION') return true;
+      // Centered vertical guide-rail wrapper with left+right borders only (no top/bottom box border)
+      const hasVerticalRailsOnly =
+        r.width >= vw * 0.65 &&
+        borderWidths[1] >= 0.5 &&
+        borderWidths[3] >= 0.5 &&
+        borderWidths[0] < 0.5 &&
+        borderWidths[2] < 0.5;
+      if (hasVerticalRailsOnly) return true;
+
+      const isGridOrFlex =
+        s.display === 'grid' ||
+        s.display === 'inline-grid' ||
+        s.display === 'flex' ||
+        s.display === 'inline-flex';
+      if (!isGridOrFlex && !el.querySelector(':scope > section, :scope > article')) return false;
+
+      const visBlockKids = Array.from(el.children).filter((child) => {
+        if (isHiddenOrInert(child)) return false;
+        const cs = getComputedStyle(child);
+        if (cs.position === 'absolute' || cs.position === 'fixed') return false;
+        const cr = child.getBoundingClientRect();
+        return cr.width >= 120 && cr.height >= 60;
+      });
+      if (visBlockKids.length < 2) return false;
+
+      let styledKidCount = 0;
+      let kidAreaSum = 0;
+      for (const kid of visBlockKids) {
+        const ks = getComputedStyle(kid);
+        const kr = kid.getBoundingClientRect();
+        kidAreaSum += kr.width * kr.height;
+        const kBg = parseRgba(ks.backgroundColor);
+        const kHasBg = Boolean(kBg && kBg[3] > 0.05);
+        const kHasShadow = Boolean(ks.boxShadow && ks.boxShadow !== 'none');
+        const kRadius = getMaxRadiusPx(ks);
+        const kBorder =
+          (parseFloat(ks.borderTopWidth) || 0) >= 0.5 ||
+          (parseFloat(ks.borderBottomWidth) || 0) >= 0.5 ||
+          (parseFloat(ks.borderLeftWidth) || 0) >= 0.5 ||
+          (parseFloat(ks.borderRightWidth) || 0) >= 0.5;
+        if (kHasBg || kHasShadow || kRadius > 0 || kBorder || kid.tagName === 'ARTICLE' || kid.tagName === 'SECTION') {
+          styledKidCount++;
+        }
+      }
+      const parentArea = Math.max(1, r.width * r.height);
+      return styledKidCount >= 2 || (isGridOrFlex && kidAreaSum / parentArea >= 0.65);
+    };
 
     for (const el of document.querySelectorAll('body *')) {
       if (isHiddenOrInert(el)) continue;
@@ -900,11 +952,13 @@ async function runStudioCraftAudit(page, sectionMeta, { allowGenericFonts = fals
       const role = (el.getAttribute('role') || '').toLowerCase();
       if (role === 'button') continue;
       if (el.tagName === 'A' && /\b(btn|button)\b/i.test(String(el.className || ''))) continue;
+      // Never sample tiny decorative corner registration squares or micro-elements as cards
+      if (r.width <= 16 && r.height <= 16) continue;
       if (r.width < 160 || r.height < 80) continue;
 
       const radiusPx = getMaxRadiusPx(s);
       if (isCircleGeometry(r, radiusPx)) continue;
-      if (el.matches('[class*="avatar" i], [class*="dot" i], [class*="swatch" i]')) continue;
+      if (el.matches('[class*="avatar" i], [class*="dot" i], [class*="swatch" i], [class*="reg-mark" i], [class*="registration" i], [class*="crosshair" i], [class*="corner-mark" i]')) continue;
 
       const borderColors = [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor]
         .map(parseRgba);
@@ -919,10 +973,13 @@ async function runStudioCraftAudit(page, sectionMeta, { allowGenericFonts = fals
       const compBg = bgRgba && bgRgba[3] > 0.05 ? compositeOver(bgRgba, bodyBgRgb) : null;
       const hasDistinctBg = Boolean(compBg && rgbDist(compBg, bodyBgRgb) > 10);
 
-      // Ignore full-bleed horizontal page sections that lack a card border/shadow
+      // Ignore full-bleed horizontal page sections and structural borderless grid wrappers
       const isFullBleedBand = (r.width >= vw * 0.94 || (el.tagName === 'SECTION' && r.width >= vw - 4)) && !hasBoxBorder && !hasShadow;
       if (isFullBleedBand) continue;
       if (!hasBoxBorder && !hasShadow && !hasDistinctBg) continue;
+      if (isStructuralBorderlessWrapper(el, s, r, borderWidths, hasBoxBorder, hasShadow, radiusPx)) continue;
+
+      cardCandidateEls.push(el);
 
       const tier = classifyRadiusTier(radiusPx, r.height);
       const normVal = tier === 'pill' ? 'pill' : `${Math.round(radiusPx)}px`;
@@ -942,6 +999,7 @@ async function runStudioCraftAudit(page, sectionMeta, { allowGenericFonts = fals
     for (const el of document.querySelectorAll('button, [role="button"], input, select, a[class*="btn" i], a[class*="button" i]')) {
       if (isHiddenOrInert(el)) continue;
       const r = el.getBoundingClientRect();
+      if (r.width <= 16 && r.height <= 16) continue;
       if (r.width < 4 || r.height < 4) continue;
       if (el.tagName === 'INPUT') {
         const t = (el.getAttribute('type') || 'text').toLowerCase();
@@ -1380,6 +1438,92 @@ async function runStudioCraftAudit(page, sectionMeta, { allowGenericFonts = fals
         : null,
     };
 
+    // 7. Copy Economy Telemetry
+    const countWords = (text) =>
+      String(text || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length;
+
+    const computeMedian = (nums) => {
+      if (!nums || nums.length === 0) return 0;
+      const sorted = [...nums].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      if (sorted.length % 2 === 1) return sorted[mid];
+      return Number(((sorted[mid - 1] + sorted[mid]) / 2).toFixed(1));
+    };
+
+    const FAQ_OR_LEGAL_RE = /\b(faq|faqs|frequently\s+asked|accordion|legal|terms|privacy|disclaimer|policy|license|copyright|imprint|tos)\b/i;
+    const isFaqOrLegalCard = (el) => {
+      if (el.closest('details, footer, [role="region"][aria-labelledby*="faq" i]')) return true;
+      let cur = el;
+      while (cur && cur !== document.body) {
+        const meta = [
+          cur.id || '',
+          typeof cur.className === 'string' ? cur.className : '',
+          cur.getAttribute('aria-label') || '',
+          cur.getAttribute('data-section') || '',
+        ].join(' ');
+        if (FAQ_OR_LEGAL_RE.test(meta)) return true;
+        if (cur.tagName === 'SECTION') {
+          const secHeading = cur.querySelector('h1, h2, h3');
+          if (secHeading && FAQ_OR_LEGAL_RE.test(secHeading.innerText || secHeading.textContent || '')) {
+            return true;
+          }
+          break;
+        }
+        cur = cur.parentElement;
+      }
+      return false;
+    };
+
+    const h1WordCount = h1El ? countWords(h1El.innerText || h1El.textContent) : 0;
+
+    const leafCardEls = cardCandidateEls.filter((el) => {
+      if (el.closest('header, nav, footer')) return false;
+      const nested = cardCandidateEls.filter((other) => other !== el && el.contains(other));
+      if (nested.length >= 2) return false;
+      if (nested.length === 1) {
+        const ownWords = countWords(el.innerText || el.textContent);
+        const childWords = countWords(nested[0].innerText || nested[0].textContent);
+        if (ownWords > 0 && childWords / ownWords >= 0.6) return false;
+      }
+      return true;
+    });
+
+    const cardWordCounts = [];
+    const wordyCards = [];
+    for (const el of leafCardEls) {
+      const words = countWords(el.innerText || el.textContent);
+      if (words <= 0) continue;
+      cardWordCounts.push(words);
+      if (words > 75 && !isFaqOrLegalCard(el) && wordyCards.length < 16) {
+        const headingNode = el.querySelector('h1, h2, h3, h4');
+        const heading = ((headingNode?.innerText || '').trim().replace(/\s+/g, ' ')).slice(0, 60) || null;
+        wordyCards.push({
+          tag: el.tagName.toLowerCase(),
+          heading,
+          wordCount: words,
+          className: typeof el.className === 'string' ? el.className.trim().slice(0, 48) || null : null,
+        });
+      }
+    }
+
+    const medianCardWordCount = computeMedian(cardWordCounts);
+    const copyDensityTier =
+      medianCardWordCount > 45 || wordyCards.length > 0
+        ? 'wordy'
+        : medianCardWordCount <= 22 && h1WordCount <= 12
+          ? 'minimal'
+          : 'balanced';
+
+    const copyEconomy = {
+      h1WordCount,
+      medianCardWordCount,
+      wordyCards,
+      copyDensityTier,
+    };
+
     const primaryCanvasColors = {
       bodyBackground: rgbToHex(bodyBgRgb),
       bodyText: rgbToHex(bodyTextRgb),
@@ -1397,6 +1541,7 @@ async function runStudioCraftAudit(page, sectionMeta, { allowGenericFonts = fals
         navClutter,
         wrappedMonoBars,
         defaultFontFlags,
+        copyEconomy,
       },
       typographyMeta,
       primaryCanvasColors,
@@ -1434,6 +1579,11 @@ async function runStudioCraftAudit(page, sectionMeta, { allowGenericFonts = fals
   if (sc.defaultFontFlags.length > 0 && !allowGenericFonts) {
     scWarnings.push(
       `Studio craft: generic AI font(s) detected (${sc.defaultFontFlags.join(', ')}); pass --allow-generic-fonts to suppress when intentional`,
+    );
+  }
+  if (sc.copyEconomy.wordyCards.length > 0) {
+    scWarnings.push(
+      `Studio craft: ${sc.copyEconomy.wordyCards.length} card(s) exceed 75 words of prose (tighten copy economy)`,
     );
   }
 
@@ -1489,7 +1639,7 @@ function buildVisualCriticChecklist({
       url,
       auditedAt,
       outputDir: path.resolve(outDir),
-      rubricScale: '6-axis-10-point',
+      rubricScale: '7-axis-10-point',
     },
     desktopTiles: desktopTileResult.files,
     mobileTiles: mobileTileResult.files,
@@ -1500,6 +1650,7 @@ function buildVisualCriticChecklist({
       mobile: mobileTileResult.metadata,
     },
     studioCraftWarnings: studioCraft.warnings,
+    copyEconomy: studioCraft.copyEconomy,
     typographyCraft: {
       h1Family: typographyMeta.h1?.primaryFamily ?? null,
       h1FontStack: typographyMeta.h1?.fontFamily ?? null,
@@ -1539,6 +1690,12 @@ function buildVisualCriticChecklist({
       radiusContract: studioCraft.radiusContract,
       heavyShadowCardRatio: domAudit.antiSlop.heavyShadowCardRatio,
       purpleIndigoGradientCount: domAudit.antiSlop.purpleIndigoGradientCount,
+    },
+    sideBySideVisualLineage: {
+      requiredReferenceAssets: ['desktop-top.png', 'desktop-full.png'],
+      generatedTiles: desktopTileResult.files,
+      prompt:
+        'Compare generated tiles side-by-side against reference captures: are background substrates, framing lines, hero geometry, surface polarity, and copy economy unmistakably aligned?',
     },
   };
 }

@@ -24,10 +24,10 @@ Most frontend builds and redesigns fail in predictable ways: generic boilerplate
 
 `unslop` replaces single-shot guesswork with an inspect-first, adaptive browser-driven pipeline:
 
-| Dimension | Unstructured UI Generation | With `unslop` (`v1.3.0`) |
+| Dimension | Unstructured UI Generation | With `unslop` (`v1.4.0`) |
 | :--- | :--- | :--- |
-| **Phase 0 Discovery** | Jumps straight to code or asks generic boilerplate questions | Runs `doctor.mjs` + `detect_stack.mjs` + `inspect_site.mjs` + `extract_reference.mjs` (`reference-tokens.json`) **first**, locks section rhythm, 3-radius budget, and navbar purity into `.unslop/brief.md` before coding |
-| **Typography & Surfaces** | Defaults to bold `700` Inter/Space Grotesk & cold `#0B0D14` navy-slate | Enforces curated pairings (`type-pairings.md`), `400`/`500` optical weights, `craft-primitives.md` (`2%` SVG grain, `1px` edge-to-edge hairlines, `#151414` warm charcoal), and banned default-font rules |
+| **Phase 0 Discovery** | Jumps straight to code or asks rigid generic questions | Runs `doctor.mjs` + `detect_stack.mjs` + `inspect_site.mjs` + `extract_reference.mjs` (`reference-tokens.json` with `visualMotifs` + `copyDensity`) **first**, conducts dynamic `1–10+` question intervals, and locks `.unslop/brief.md` before coding |
+| **Visual DNA & Copy Economy** | Over-corrects into generic templates or walls of text | Enforces **Two-Tier Precedence** (Universal Craft Laws + Reference-Driven Visual Grammar), context-driven typography (technical grotesque `500` vs. editorial serif), architectural primitives (`craft-primitives.md`), and concise animation-led copy |
 | **Speed vs. Depth Control** | One rigid workflow for hackathons, businesses, and quick animations | Adapts cleanly across **`fast`**, **`standard`**, **`deep`** (launch-ready + Two-Wave parallel build), and **`extract-component`** presets |
 | **Inspiration Analysis** | Cosplays aesthetic from memory or a single desktop thumbnail | Measures exact pixel-area polarity ratios, modal radii, section alignment %, `reconDigest`, `mobile-full.png`, `interactiveStates`, GPU `shaderSource` hooks, CORS-proof CSS timelines, and scroll filmstrips |
 | **Closed-Loop QA & Pass-3 Critic** | Audits DOM math once (missing dead voids & wrapped chips) | Runs `audit_ui.mjs` (CLS, WCAG AA contrast, `studioCraft` checks for radius drift, >2 centered pyramids, stretched card voids, wrapped mono bars & header clutter) + captures `critic-desktop/mobile-*.png` tiles for Pass-3 Visual Critic (`>= 8/10`) |

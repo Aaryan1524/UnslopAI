@@ -4,30 +4,29 @@ Typography carries structural authority before a single card or shader renders. 
 
 ---
 
-## 1. Hard-Ban Generic Font Defaults
+## 1. Two-Tier Precedence: Universal Laws vs. Context-Driven Selection
 
-**Never default to these overused sans-serif families:**
-- `Inter`
-- `Plus Jakarta Sans`
-- `Space Grotesk`
-- `Poppins`
-- `Roboto`
+Separate non-negotiable optical craft from brand- and reference-driven voice so every build feels tailored rather than stamped from a single template:
 
-**Single Exception Gate:** Use any of the five banned fonts **only** if `.unslop/inspect/reference-tokens.json` proves the user's inspiration URL renders it in computed styles (or the user explicitly requests it in writing). Otherwise, substitute from the curated registries below.
-
----
-
-## 2. Strict Optical CSS Rules (Mandatory)
-
-Apply these rules globally in `tokens.css` / `layout.css` across every theme and breakpoint:
-
-1. **Optical Sizing:** Always set `font-optical-sizing: auto;` on `html` / `body` and variable serif/sans display faces (`Newsreader`, `Source Serif 4`, `DM Sans`).
-2. **Medium Display Weights (`400`–`500`):** Set `h1` and `h2` at `font-weight: 400` or `500` (`400` for high-contrast editorial serifs; `500` for neo-grotesks). **Never** default to bloated `700`/`800` weights on display headlines unless `reference-tokens.json` explicitly measures heavy display weights on the inspiration URL.
-3. **Negative Display Tracking:** Apply tight letter-spacing on display scales (`-0.025em` to `-0.04em`), tightening further as font size increases:
+### Tier 1 — Universal Typographic Craft Laws (Always Enforced)
+1. **Hard-Ban Generic Font Defaults:** Never default to `Inter`, `Plus Jakarta Sans`, `Space Grotesk`, `Poppins`, or `Roboto` unless `.unslop/inspect/reference-tokens.json` proves the user's inspiration URL renders them in computed styles (or the user explicitly requests them in writing).
+2. **Optical Sizing:** Always set `font-optical-sizing: auto;` on `html` / `body` and variable serif/sans display faces (`Newsreader`, `Source Serif 4`, `DM Sans`).
+3. **Restrained Display Weights (`400`–`500`):** Set `h1` and `h2` at `font-weight: 400` or `500` (`400` for high-contrast editorial serifs; `500` for technical neo-grotesks). **Never** default to bloated `700`/`800` display headlines unless `reference-tokens.json` explicitly measures heavy display weights on the inspiration URL.
+4. **Negative Display Tracking:** Tighten letter-spacing as scale grows:
    - Hero `h1` (`>= 2.75rem`): `letter-spacing: -0.035em; line-height: 1.04;`
    - Section `h2` (`1.75rem–2.5rem`): `letter-spacing: -0.025em; line-height: 1.12;`
    - Uppercase micro-labels (`0.72rem–0.75rem`): `letter-spacing: 0.08em; font-weight: 500;`
-4. **Tabular Numerals:** Enforce `font-variant-numeric: tabular-nums;` on every price, metric counter, countdown/timer, telemetry table, and timestamp so digits never jitter horizontally on state updates.
+5. **Tabular Numerals & Non-Wrapping Mono:** Enforce `font-variant-numeric: tabular-nums;` on every price, metric counter, countdown/timer, telemetry table, and timestamp. Keep inline monospace status bars and badges `white-space: nowrap`.
+
+### Tier 2 — Reference-Driven & Mood-Driven Selection (Overrides Generic Defaults)
+Choose the registry by matching the **inspected reference site + brand mood** (recorded in `.unslop/brief.md` Section 1 & Section 7):
+
+| Reference / Brand Context | Default Registry & Rule | Why |
+| :--- | :--- | :--- |
+| **Technical, Infrastructure, Developer Tools, Cloud/Systems** *(or any reference using pure neo-grotesk + mono)* | **Registry B (Infrastructure Neo-Grotesk, `500` display + `400` body + Mono)** — do **NOT** forcibly inject an editorial serif | Preserves crisp architectural precision and reference lineage without costume-serif friction |
+| **Expressive, Editorial, Publishing, Lively, Colorful, or Consumer Storytelling Brands** *(or serif-led references)* | **Registry A (Sharp Editorial Serif + Calm Sans + Mono)** | Unlocks editorial warmth, italic contrast (`<em>`), and cultural personality |
+| **Hardware Instruments, Minimalist Utilities, Swiss Architectural Studios** | **Registry C (Geometric/Grotesk Instrument + Tabular Mono)** | Balances neutral industrial proportions with clean uppercase micro-labels |
+| **Explicit User Font Request** | **User-specified family** *(still governed by Tier 1 optical CSS, tracking, and tabular-nums)* | User intent always wins over registry presets |
 
 ```css
 :root {
@@ -58,13 +57,13 @@ h1, h2, .display-heading {
 
 ---
 
-## 3. Curated Registries & Ready-to-Copy Import URLs
+## 2. Curated Registries & Ready-to-Copy Import URLs
 
-### Registry A — Sharp Editorial Serif
-Avoid raw unstyled system `Times New Roman`. Pair high-contrast editorial serifs with calm neutral sans UI and crisp technical monospace. Ideal for publishing tools, architectural narratives, essays, and editorial product launches.
+### Registry A — Sharp Editorial Serif *(Expressive, Editorial, Publishing, Lively / Colorful Brands)*
+Avoid raw unstyled system `Times New Roman`. Pair high-contrast editorial serifs with calm neutral sans UI and crisp technical monospace. Use when the brand mood is editorial, expressive, cultural, or lively — or when the reference site pairs serif display with clean sans UI.
 
 - **Option A1 (Crisp Display Contrast):**
-  - **Display:** `Instrument Serif` (`400` + `italic 400` for single-phrase emphasis like `<em>You know.</em>`, `font-weight: 400`, `-0.025em` to `-0.035em` tracking)
+  - **Display:** `Instrument Serif` (`400` + `italic 400` for single-phrase emphasis, `font-weight: 400`, `-0.025em` to `-0.035em` tracking)
   - **UI & Body:** `Figtree` (`400`, `500`) or `Geist` (`400`, `500`)
   - **Mono / Telemetry:** `JetBrains Mono` (`400`, `500`)
   ```html
@@ -92,8 +91,8 @@ Avoid raw unstyled system `Times New Roman`. Pair high-contrast editorial serifs
 
 ---
 
-### Registry B — Infrastructure Neo-Grotesk
-Captures the tight architectural precision of `FT Kunst Grotesk`, `STK Bureau Sans`, and `Apercu Mono Pro` aesthetics. Ideal for developer infrastructure, API platforms, operational consoles, and technical product sites.
+### Registry B — Infrastructure Neo-Grotesk *(Default for Technical, Infrastructure & Pure-Sans References)*
+Captures the tight architectural precision of modern neo-grotesks paired with clean monospace telemetry. Default here for developer infrastructure, API platforms, operational consoles, observability suites, and technical product sites — keep headlines crisp at **`500`** without injecting an unrequested serif.
 
 - **Option B1 (Google Fonts Direct):**
   - **Display & UI:** `Figtree` (`400`, `500` — set display `h1`/`h2` strictly at **`500`** with `-0.03em` tracking; **never** `700`/`800`)
@@ -132,7 +131,7 @@ Neutral, crisp geometric/grotesque geometry with industrial micro-labels (`0.72r
 
 - **Display & UI:** `DM Sans` (`400`, `500`) or `IBM Plex Sans` (`400`, `500`)
 - **Mono / Readouts:** `JetBrains Mono` (`400`, `500`, `font-variant-numeric: tabular-nums`)
-- **Optional Editorial Accent (Swiss Studio):** Pair `Instrument Serif` (`400`, italic `400`) on hero pull-quotes alongside `DM Sans` (`400`, `500`) UI chrome.
+- **Optional Editorial Accent (Swiss Studio):** Pair `Instrument Serif` (`400`, italic `400`) on pull-quotes alongside `DM Sans` (`400`, `500`) UI chrome when the brand mood leans editorial.
   ```html
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
@@ -145,14 +144,14 @@ Neutral, crisp geometric/grotesque geometry with industrial micro-labels (`0.72r
 
 ---
 
-## 4. Proprietary Font Substitution Table
+## 3. Proprietary Font Substitution Table
 
 When `.unslop/inspect/report.json` or `.unslop/inspect/reference-tokens.json` flags self-hosted or commercial typefaces, map to these open-source equivalents while matching measured weights and negative tracking:
 
 | Commercial / Self-Hosted Font | Open-Source Replacement | CSS Calibration Notes |
 | :--- | :--- | :--- |
 | `FT Kunst Grotesk` | `Figtree` (`500` display, `400` body) or `Switzer` | Set `h1`/`h2` at `500` with `-0.03em` tracking; never jump to `700` |
-| `STK Bureau Sans` | `Figtree` (`500`) or `Instrument Serif` (`400`) | Use `Figtree 500` for tight neo-grotesk parity; `Instrument Serif` for editorial contrast |
+| `STK Bureau Sans` | `Figtree` (`500`) or `Switzer` (`500`) | Keep technical neo-grotesk parity at `500`; add `Instrument Serif` only when brand mood is editorial |
 | `Apercu Mono Pro` | `JetBrains Mono` (`400`, `500`) | Pair with `font-variant-numeric: tabular-nums` and `0.02em`–`0.06em` label tracking |
 | `APK Protocol` / `Söhne` / `GT America` | `Figtree` (`400`, `500`), `Geist`, or `Switzer` | Preserve `-0.025em` to `-0.035em` display tracking and `1.55` body leading |
 | `Founders Grotesk` / `Favorit` | `General Sans` or `DM Sans` (`400`, `500`) | Keep headings crisp at `500` with `font-optical-sizing: auto` |
@@ -161,7 +160,7 @@ When `.unslop/inspect/report.json` or `.unslop/inspect/reference-tokens.json` fl
 
 ---
 
-## 5. Offline / Zero-CDN Fallback Policy
+## 4. Offline / Zero-CDN Fallback Policy
 
 Only omit Google Fonts / Fontshare `<link>` tags when the target environment forbids external CDNs or requires air-gapped self-hosting:
 - **Self-Hosted Preference:** Bundle `.woff2` subsets (`@fontsource/figtree`, `@fontsource/instrument-serif`, `@fontsource/jetbrains-mono`, etc.) locally rather than reverting to unstyled `Arial` / `Times New Roman`.

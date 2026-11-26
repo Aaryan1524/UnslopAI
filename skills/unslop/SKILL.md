@@ -5,13 +5,13 @@ license: MIT
 compatibility: Requires Node.js >= 22.6 and Playwright (Chromium or local Google Chrome) for automated inspection, reference token extraction, and audit scripts. Optional REA bundle enrichment requires Node ^22.23.4, ^24.22.1, or >=26.12.1.
 metadata:
   author: Aaryan1524
-  version: "1.3.0"
+  version: "1.4.0"
   repository: "https://github.com/Aaryan1524/UnslopAI"
 ---
 
-# Unslop — Inspect-First Adaptive Discovery, Reference Craft & Closed-Loop QA
+# Unslop — Visual-DNA Extraction, Dynamic Discovery & Closed-Loop QA
 
-Turn any frontend build, inspiration-driven redesign, or single-animation extraction into an adaptive, studio-grade engineering pipeline. One minimal `/unslop` skill routes across **Fast**, **Standard**, **Deep (Launch-Ready + Parallel)**, and **Extract-Component** presets—measuring reference DOM/CSS tokens first, locking section rhythm & geometry contracts before coding, and auditing both DOM mechanics and visual craft before delivery.
+Turn any frontend build, inspiration-driven redesign, or single-animation extraction into an adaptive, studio-grade engineering pipeline. One minimal `/unslop` skill routes across **Fast**, **Standard**, **Deep (Launch-Ready + Parallel)**, and **Extract-Component** presets—extracting both DOM/CSS scalars and visual motifs (`reference-tokens.json` + screenshot review), gathering deep context via dynamic multi-interval Q&A, honoring Two-Tier Rule Precedence (Universal Craft Laws + Reference-Driven Visual Grammar), and verifying with Playwright + a 7-Axis Side-by-Side Visual Critic before delivery.
 
 > **Script Paths & Workspace Hygiene:** Commands below use `<skill-dir>/scripts/...` (resolve `<skill-dir>` to the folder containing this `SKILL.md`, e.g., `skills/unslop` in-repo or `~/.agents/skills/unslop` standalone). `browser_helper.mjs` resolves `playwright` automatically. Store all scratch telemetry, contracts, and audits inside **`.unslop/`** (`brief.md`, `stack-report.json`, `inspect/`, `DESIGN.md`, `COMPONENTS.md`, `audit/`) and **add `.unslop/` to the target repository's `.gitignore` before writing scratch files** (or clean temporary dumps on delivery) so generated projects stay clean.
 >
@@ -32,16 +32,15 @@ Turn any frontend build, inspiration-driven redesign, or single-animation extrac
      node <skill-dir>/scripts/inspect_site.mjs <url> .unslop/inspect
      node <skill-dir>/scripts/extract_reference.mjs <url> .unslop/inspect/reference-tokens.json
      ```
-     Read `report.json`'s `reconDigest` and `reference-tokens.json` (`surfaceRatio`, `typography` exact weights/tracking/ratios, `geometryLock` modal card/button/input/media radii, `alignmentAudit`, and `cssTokensSnippet`) plus `desktop-top.png` / `mobile-top.png`.
+     Read `report.json`'s `reconDigest` and `reference-tokens.json` (`surfaceRatio`, `typography` exact weights/tracking/ratios, `geometryLock`, `alignmentAudit`, `visualMotifs`, `copyDensity`, and `cssTokensSnippet`) AND visually inspect `desktop-top.png`, `desktop-mid.png`, `desktop-full.png`, `mobile-top.png`, and `components/*.png` to catalog structural motifs (outer dot/grid substrates, vertical guide rails, corner registration squares, notched corner brackets, inset shader frames, split chaos-vs-calm contrasts, tinted light micro-UIs vs. dark slabs).
    - **Blocked / Auth / Screenshots Only:** If `blocked: true`, stop automation immediately (never bypass CAPTCHAs, Cloudflare, or login walls—see [`references/capabilities-and-limitations.md`](references/capabilities-and-limitations.md)) and rely on user-supplied screenshots.
-2. **Request-Specific Adaptive Q&A (2–3 Quick Rounds):**
+2. **Dynamic Multi-Interval Discovery Q&A (`1` to `10+` questions):**
    - Follow [`references/product-discovery-interview.md`](references/product-discovery-interview.md): use `AskUserQuestion` (or structured choices) where supported, numbered options otherwise.
-   - Cite concrete extracted facts (actual `surfaceRatio` lightness %, measured display weight/tracking, extracted bands/overlays, and detected stack), skip anything already answered, and offer *"Use best defaults"*.
-3. **Lock `.unslop/brief.md` + Rhythm & Geometry Contract:**
+   - Scale dynamically from **1 rapid confirmation** (when the prompt is already complete or *"Use best defaults"* is selected) up to **5–10+ targeted questions delivered in focused 2–4 question intervals** until you have complete context on product core, visual motif fidelity, typography mood (technical grotesque `500` vs. expressive editorial serif vs. explicit user preference), copy minimalism vs. depth, and product-explaining signature animations.
+3. **Lock `.unslop/brief.md` (Visual DNA, Copy Economy & Two-Tier Contract):**
    - Write `.unslop/brief.md` using [`references/product-brief-template.md`](references/product-brief-template.md), locking:
-     - **Aligned Reference Tokens:** Exact measured polarity, light/dark surface %, heading weights (`400`/`500` where crisp—never default `700`/`800`), negative tracking, and curated font mapping.
-     - **Alternating Section Rhythm:** Explicitly forbid `> 2` consecutive centered-pyramid sections (`Hero split` → `Sticky numbered flow` → `Full-bleed telemetry` → `Hairline bento`).
-     - **Strict 3-Radius Budget (`--r-card`, `--r-control`, `--r-media`), Navbar Purity Rule (`<= 5` links + `1` primary CTA; Theme/Motion in `<footer>` or `Cmd+K`), Anti-Void Card Rule, and No-Fabrication Redlines.**
+     - **Tier 1 Universal Craft Laws (Always Enforced):** Zero stretched card voids, zero wrapped mono status bars, pure header (`<= 5` links + `1` CTA; Theme/Motion in `<footer>` or `Cmd+K`), WCAG AA contrast, `>= 44×44px` mobile tap targets, zero overflow, restrained weights (`400`/`500`), and concise copy economy matching `copyDensity`.
+     - **Tier 2 Reference-Driven Visual Grammar (Reference Wins Over Generic Defaults):** Exact observed motifs (substrates, framing rails, registration nodes, inset halftone/shader frames, split comparisons), context-driven typography mood (matching reference grotesque vs. editorial serif), coherent button/card geometry (including reference pill CTAs paired with `4px` cards and `16px` media frames), and animation-first product storytelling.
    - Get quick user approval before writing application code (unless the user asked to build immediately with defaults).
 
 ---
@@ -110,9 +109,9 @@ Before authoring contracts or code, inspect the extracted evidence in `.unslop/i
    ```
    Verify `summary.passed === true` (`0` critical errors) AND zero unresolved `studioCraft` warnings (`radiusContract.radiusDriftDetected === false`, `sectionRhythm.monotonyDetected === false`, `stretchedVoidCards: []`, `navClutter.cluttered === false`, `wrappedMonoBars: []`, `defaultFontFlags: []`), alongside CLS `<= 0.10`, `semantics` hygiene, live `<canvas>` animation + Motion-Off freeze, dual-theme WCAG AA contrast, `Escape` overlay dismissal, and `sharedChromeConsistency.consistent === true`.
 2. **Pass-3 Multimodal Visual Art-Director Critique (`deep` mode mandatory, `standard` recommended):**
-   - Inspect tiled `critic-desktop-*.png` (`1440×900`) and `critic-mobile-*.png` (`390×844`) captures + `visual-critic-checklist.json` alongside `.unslop/inspect/reference-tokens.json`.
-   - In `deep` mode, dispatch a fresh-context read-only Visual Critic ([`references/parallel-orchestration.md`](references/parallel-orchestration.md)) scoring the **6-Axis 10-Point Anti-Slop Rubric** (`Typography Craft`, `Dead-Space Audit`, `Micro-UI Wrapping`, `Rhythm & Monotony`, `Reference Fidelity`, `Surface Cohesion`).
-   - If any axis scores **`< 8/10`**, output concrete CSS/layout patch directives, execute a targeted polish pass, and re-run `audit_ui.mjs` until all 6 axes reach `>= 8/10`.
+   - Inspect tiled `critic-desktop-*.png` (`1440×900`) and `critic-mobile-*.png` (`390×844`) captures + `visual-critic-checklist.json` **side-by-side** with `.unslop/inspect/desktop-top.png`, `desktop-full.png`, and `reference-tokens.json`.
+   - In `deep` mode, dispatch a fresh-context read-only Visual Critic ([`references/parallel-orchestration.md`](references/parallel-orchestration.md)) scoring the **7-Axis 10-Point Rubric** (`Typography Craft`, `Dead-Space Audit`, `Micro-UI Wrapping`, `Rhythm & Monotony`, `Reference Fidelity`, `Surface Cohesion`, and `Side-by-Side Visual Lineage & Copy Economy`).
+   - If any axis scores **`< 8/10`**, output concrete CSS/layout/motif patch directives, execute a targeted polish pass, and re-run `audit_ui.mjs` until all 7 axes reach `>= 8/10`.
 
 ---
 

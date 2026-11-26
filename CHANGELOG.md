@@ -5,6 +5,20 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.4.0] - 2026-11-26
+
+### Added
+- **Visual-Motif & Copy-Economy Extraction (`skills/unslop/scripts/extract_reference.mjs`):**
+  - Added deterministic `visualMotifs` (`hasDotOrGridBackground`, `hasVerticalGuideRails`, `hasInsetHeroFrame`, `heroAlignment`, `pillPrimaryCtaDetected`, `usesTintedLightCards`, `hasDarkContentPanels`) and `copyDensity` (`h1WordCount`, `heroSubheadWordCount`, `medianHeadingWordCount`, `medianCardWordCount`, `copyDensityTier`) telemetry to `reference-tokens.json`.
+- **Two-Tier Rule Precedence & Context-Driven Typography (`type-pairings.md`, `anti-slop-checklist.md`, `SKILL.md`):**
+  - Separated **Tier 1 Universal Craft Laws** (always enforced: zero voids, zero wrapped mono bars, pure header, WCAG AA contrast, `44px` tap targets, copy economy) from **Tier 2 Reference-Driven Visual Grammar** so reference-measured grotesque typography, inset halftone heroes, pill primary CTAs with `4px` cards, and luminous tinted micro-UIs are faithfully preserved rather than overridden by generic defaults.
+- **Architectural Motif Primitives (`craft-primitives.md`):**
+  - Added reusable CSS/Canvas primitives for outer dot-matrix gutter substrates, continuous vertical blueprint guide rails + `7×7px` square registration nodes, notched corner-bracket callouts, inset halftone/solar-glow hero/CTA frames + bottom ticker marquees, 50/50 split comparison stages, and luminous tinted-surface micro-UIs.
+- **Dynamic Multi-Interval Discovery (`product-discovery-interview.md`, `product-brief-template.md`):**
+  - Replaced rigid round caps with dynamic `1` to `10+` question intervals adapting to prompt completeness, capturing visual motif fidelity, typography mood, copy minimalism, and product-explaining signature animations.
+- **7-Axis Side-by-Side Visual Lineage & Copy Economy Critic (`audit_ui.mjs`, `parallel-orchestration.md`):**
+  - Upgraded `visual-critic-checklist.json` to `7-axis-10-point` adding `copyEconomy` metrics and `sideBySideVisualLineage` comparing reference captures directly beside generated `critic-desktop-*.png` tiles.
+
 ## [1.3.0] - 2026-11-26
 
 ### Added

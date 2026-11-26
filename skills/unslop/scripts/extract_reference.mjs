@@ -1047,6 +1047,455 @@ export async function extractReference(url, outputPathOrDir = './reference-out')
         sequence,
       };
 
+      // Visual-Motif & Copy-Economy Telemetry
+      const parseCornerRadiusPx = (raw, refSpan) => {
+        const str = String(raw || '').trim();
+        if (!str) return 0;
+        const n = parseFloat(str);
+        if (!Number.isFinite(n) || n <= 0) return 0;
+        if (str.endsWith('%') && refSpan > 0) return (n / 100) * refSpan;
+        return n;
+      };
+
+      const getMaxCornerRadiusPx = (s, rect) => {
+        const refSpan = rect ? Math.min(rect.width, rect.height) : 0;
+        return Math.max(
+          parseCornerRadiusPx(s.borderTopLeftRadius, refSpan),
+          parseCornerRadiusPx(s.borderTopRightRadius, refSpan),
+          parseCornerRadiusPx(s.borderBottomRightRadius, refSpan),
+          parseCornerRadiusPx(s.borderBottomLeftRadius, refSpan),
+        );
+      };
+
+      const countWords = (text) =>
+        String(text || '')
+          .trim()
+          .split(/\s+/)
+          .filter(Boolean).length;
+
+      const computeMedian = (nums) => {
+        if (!nums || nums.length === 0) return 0;
+        const sorted = [...nums].sort((a, b) => a - b);
+        const mid = Math.floor(sorted.length / 2);
+        if (sorted.length % 2 === 1) return sorted[mid];
+        return Number(((sorted[mid - 1] + sorted[mid]) / 2).toFixed(1));
+      };
+
+      // 1. Dot or grid background substrate detection
+      const safeDecodeUri = (str) => {
+        try {
+          return decodeURIComponent(str);
+        } catch {
+          return str;
+        }
+      };
+
+      const hasSmallTileSize = (bgSizeStr) => {
+        const layers = String(bgSizeStr || '').split(',');
+        for (const layer of layers) {
+          const pxMatches = layer.match(/\d+(?:\.\d+)?px/gi);
+          if (!pxMatches) continue;
+          for (const tok of pxMatches) {
+            const val = parseFloat(tok);
+            if (Number.isFinite(val) && val > 0 && val <= 128) return true;
+          }
+        }
+        return false;
+      };
+
+      const styleHasDotOrGridBg = (s) => {
+        if (!s) return false;
+        const bgImg = String(s.backgroundImage || '');
+        if (!bgImg || bgImg === 'none') return false;
+        if (/repeating-(?:linear|radial|conic)-gradient\(/i.test(bgImg)) return true;
+        if (/data:image\/svg\+xml/i.test(bgImg)) {
+          const decoded = safeDecodeUri(bgImg);
+          if (/<(?:pattern|circle|line|rect|path)\b/i.test(decoded) || /(?:pattern|grid|dot)/i.test(decoded)) {
+            return true;
+          }
+        }
+        const repeat = String(s.backgroundRepeat || 'repeat').toLowerCase();
+        const smallTile = hasSmallTileSize(s.backgroundSize);
+        if (/radial-gradient\(/i.test(bgImg)) {
+          if (smallTile || (repeat !== 'no-repeat' && /\b\d+(?:\.\d+)?px\b/i.test(bgImg))) {
+            return true;
+          }
+        }
+        if (/linear-gradient\(/i.test(bgImg) && smallTile && repeat !== 'no-repeat') {
+          return true;
+        }
+        return false;
+      };
+
+      let hasDotOrGridBackground = false;
+      const bgProbeSet = new Set([document.documentElement, bodyEl].filter(Boolean));
+      for (const el of document.querySelectorAll(
+        'main, body > *, main > *, section, header, [class*="grid" i], [class*="dot" i], [class*="pattern" i], [class*="bg" i]',
+      )) {
+        if (bgProbeSet.size >= 160) break;
+        if (isVisibleElement(el)) bgProbeSet.add(el);
+      }
+
+      for (const el of bgProbeSet) {
+        const isRootEl = el === document.documentElement || el === bodyEl;
+        if (!isRootEl) {
+          const r = el.getBoundingClientRect();
+          if (r.width < vw * 0.25 || r.height < 100) continue;
+        }
+        if (
+          styleHasDotOrGridBg(getComputedStyle(el)) ||
+          styleHasDotOrGridBg(getComputedStyle(el, '::before')) ||
+          styleHasDotOrGridBg(getComputedStyle(el, '::after'))
+        ) {
+          hasDotOrGridBackground = true;
+          break;
+        }
+      }
+
+      if (!hasDotOrGridBackground) {
+        for (const pat of document.querySelectorAll('svg pattern')) {
+          const svgEl = pat.closest('svg');
+          if (!svgEl || !isVisibleElement(svgEl)) continue;
+          const sr = svgEl.getBoundingClientRect();
+          if (sr.width >= vw * 0.2 && sr.height >= 80) {
+            hasDotOrGridBackground = true;
+            break;
+          }
+        }
+      }
+
+      if (!hasDotOrGridBackground) {
+        for (const canvasEl of document.querySelectorAll('canvas')) {
+          if (!isVisibleElement(canvasEl)) continue;
+          const cr = canvasEl.getBoundingClientRect();
+          if (cr.width < vw * 0.25 || cr.height < 120) continue;
+          const hint = [
+            canvasEl.id || '',
+            typeof canvasEl.className === 'string' ? canvasEl.className : '',
+            canvasEl.getAttribute('aria-label') || '',
+            canvasEl.parentElement?.id || '',
+            typeof canvasEl.parentElement?.className === 'string' ? canvasEl.parentElement.className : '',
+          ].join(' ');
+          if (/\b(dot|dots|dotted|grid|pattern|matrix|halftone)\b/i.test(hint)) {
+            hasDotOrGridBackground = true;
+            break;
+          }
+        }
+      }
+
+      // 2. Vertical guide rails framing centered page column (65%-95% viewport width)
+      let hasVerticalGuideRails = false;
+      const thinRailXs = [];
+      for (const el of allBodyEls) {
+        if (el === probeSpan || !isVisibleElement(el)) continue;
+        const tag = el.tagName;
+        if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'SVG' || tag === 'IMG') continue;
+        const r = el.getBoundingClientRect();
+        const s = getComputedStyle(el);
+
+        if (r.width >= vw * 0.65 && r.width <= vw * 0.95 && r.height >= 200) {
+          const centerOffset = Math.abs((r.left + r.right) / 2 - vw / 2);
+          if (centerOffset <= Math.max(48, vw * 0.05)) {
+            const leftW = parseFloat(s.borderLeftWidth) || 0;
+            const rightW = parseFloat(s.borderRightWidth) || 0;
+            const railStyles = new Set(['solid', 'dashed', 'dotted']);
+            const hasLeftRail = leftW >= 0.5 && railStyles.has(s.borderLeftStyle) && Boolean(resolveCssColor(s.borderLeftColor, el));
+            const hasRightRail = rightW >= 0.5 && railStyles.has(s.borderRightStyle) && Boolean(resolveCssColor(s.borderRightColor, el));
+            if (hasLeftRail && hasRightRail) {
+              hasVerticalGuideRails = true;
+              break;
+            }
+          }
+        } else if (r.width >= 0.5 && r.width <= 3 && r.height >= 240) {
+          const hasFillOrBorder =
+            Boolean(resolveCssColor(s.backgroundColor, el)) ||
+            (parseFloat(s.borderLeftWidth) >= 0.5 && s.borderLeftStyle !== 'none') ||
+            (parseFloat(s.borderRightWidth) >= 0.5 && s.borderRightStyle !== 'none');
+          if (hasFillOrBorder) thinRailXs.push((r.left + r.right) / 2);
+        }
+      }
+
+      if (!hasVerticalGuideRails && thinRailXs.length >= 2) {
+        for (let i = 0; i < thinRailXs.length && !hasVerticalGuideRails; i++) {
+          for (let j = i + 1; j < thinRailXs.length; j++) {
+            const xMin = Math.min(thinRailXs[i], thinRailXs[j]);
+            const xMax = Math.max(thinRailXs[i], thinRailXs[j]);
+            const span = xMax - xMin;
+            const mid = (xMin + xMax) / 2;
+            if (span >= vw * 0.65 && span <= vw * 0.95 && Math.abs(mid - vw / 2) <= Math.max(48, vw * 0.05)) {
+              hasVerticalGuideRails = true;
+              break;
+            }
+          }
+        }
+      }
+
+      // 3. Hero identification, alignment, and inset frame detection
+      const primaryH1El = pickFirstVisible('h1');
+      const heroBand =
+        (primaryH1El && dedupedBands.find((b) => b.contains(primaryH1El))) ||
+        (primaryH1El && primaryH1El.closest('section, header, [class*="hero" i]')) ||
+        dedupedBands[0] ||
+        null;
+
+      let heroAlignment = 'left-aligned';
+      if (heroBand) {
+        const heroContainer = findContentContainer(heroBand);
+        const hcRect = heroContainer.getBoundingClientRect();
+        const hcCenter = (hcRect.left + hcRect.right) / 2;
+        const heroHeadingEl =
+          (primaryH1El && heroBand.contains(primaryH1El) ? primaryH1El : null) ||
+          Array.from(heroBand.querySelectorAll('h1, h2, h3')).find(isVisibleElement) ||
+          heroContainer;
+
+        let inSplitColumn = false;
+        let curNode = heroHeadingEl;
+        while (curNode && curNode !== heroBand && curNode.parentElement) {
+          const parent = curNode.parentElement;
+          if (isMultiColumnNode(parent)) {
+            const curRect = curNode.getBoundingClientRect();
+            const siblings = Array.from(parent.children).filter((c) => c !== curNode && isVisibleElement(c));
+            const hasSideSibling = siblings.some((sib) => {
+              const sr = sib.getBoundingClientRect();
+              const vertOverlap = Math.min(curRect.bottom, sr.bottom) - Math.max(curRect.top, sr.top);
+              const horizSeparated = curRect.right <= sr.left + 24 || sr.right <= curRect.left + 24;
+              return vertOverlap > 24 && horizSeparated && sr.width >= 100 && sr.height >= 60;
+            });
+            if (hasSideSibling) {
+              inSplitColumn = true;
+              break;
+            }
+          }
+          if (parent === heroBand) break;
+          curNode = parent;
+        }
+
+        const hhRect = heroHeadingEl.getBoundingClientRect();
+        const hhStyle = getComputedStyle(heroHeadingEl);
+        const hhCenter = (hhRect.left + hhRect.right) / 2;
+        const hhCenterOffset = Math.abs(hhCenter - hcCenter);
+        const hhLeftGap = hhRect.left - hcRect.left;
+        const hhRightGap = hcRect.right - hhRect.right;
+        const isTextCentered = hhStyle.textAlign === 'center' || hhStyle.textAlign === '-webkit-center';
+        const isConstrainedCentered =
+          hhRect.width < hcRect.width - 64 &&
+          hhLeftGap >= 24 &&
+          hhRightGap >= 24 &&
+          Math.abs(hhLeftGap - hhRightGap) <= 48;
+
+        if (inSplitColumn) {
+          heroAlignment = 'split';
+        } else if (hhCenterOffset <= 48 && (isTextCentered || isConstrainedCentered)) {
+          heroAlignment = 'centered';
+        } else {
+          heroAlignment = 'left-aligned';
+        }
+      }
+
+      let hasInsetHeroFrame = false;
+      const heroZoneBottom = Math.max(vh * 1.4, 1250);
+      const heroCandidates = heroBand ? [heroBand, ...Array.from(heroBand.querySelectorAll('*'))] : allBodyEls;
+      for (const el of heroCandidates) {
+        if (el === probeSpan || !isVisibleElement(el)) continue;
+        const tag = el.tagName;
+        if (['HTML', 'BODY', 'MAIN', 'NAV', 'FOOTER', 'SCRIPT', 'STYLE', 'BUTTON', 'A', 'INPUT'].includes(tag)) continue;
+        const r = el.getBoundingClientRect();
+        if (tag === 'HEADER' && r.height < 140) continue;
+        const absTop = r.top + window.scrollY;
+        if (absTop > heroZoneBottom) continue;
+        if (r.width < vw * 0.7 || r.width >= vw * 0.99 || r.height < 160) continue;
+        const s = getComputedStyle(el);
+        const maxRad = getMaxCornerRadiusPx(s, r);
+        if (maxRad < 8) continue;
+        const bgRes = resolveCssColor(s.backgroundColor, el);
+        const effRgb = bgRes ? compositeRgb(bgRes.rgb, bgRes.alpha, rootCanvas.rgb) : null;
+        const hasDistinctSurface =
+          (Boolean(effRgb) && colorDistance(effRgb, rootCanvas.rgb) > 8) ||
+          Boolean(s.backgroundImage && s.backgroundImage !== 'none');
+        if (hasDistinctSurface) {
+          hasInsetHeroFrame = true;
+          break;
+        }
+      }
+
+      // 4. Pill primary CTA detection in hero or header
+      let pillPrimaryCtaDetected = false;
+      const topHeaderEl =
+        Array.from(document.querySelectorAll('body > header, header, [role="banner"]')).find(isVisibleElement) || null;
+      const ctaRoots = [topHeaderEl, heroBand].filter(Boolean);
+      const ctaPool = new Set();
+      for (const root of ctaRoots) {
+        for (const el of root.querySelectorAll('button, [role="button"], a[href], input[type="submit"], input[type="button"]')) {
+          ctaPool.add(el);
+        }
+      }
+      if (ctaPool.size === 0) {
+        for (const el of document.querySelectorAll('button, [role="button"], a[href], input[type="submit"], input[type="button"]')) {
+          const r = el.getBoundingClientRect();
+          if (r.top + window.scrollY <= Math.max(vh * 1.25, 1100)) ctaPool.add(el);
+        }
+      }
+
+      for (const el of ctaPool) {
+        if (!isVisibleElement(el)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width < 48 || r.height < 24 || r.height > 96) continue;
+        const textLen = (el.innerText || el.value || '').trim().length;
+        if (Math.abs(r.width - r.height) <= 6 && textLen <= 2) continue;
+        const s = getComputedStyle(el);
+        const bgRes = resolveCssColor(s.backgroundColor, el);
+        const borderInfo = hasVisibleSideBorder(s);
+        const hasStyledSurface =
+          (Boolean(bgRes) && bgRes.alpha >= 0.1) ||
+          borderInfo.allFour ||
+          Boolean(s.boxShadow && s.boxShadow !== 'none');
+        if (!hasStyledSurface) continue;
+        const maxRad = getMaxCornerRadiusPx(s, r);
+        if (maxRad >= 999 || (r.height > 0 && maxRad >= r.height * 0.45)) {
+          pillPrimaryCtaDetected = true;
+          break;
+        }
+      }
+
+      // 5. Tinted light cards & dark content panels on light-dominant pages
+      let usesTintedLightCards = false;
+      let hasDarkContentPanels = false;
+      const cardPanelCandidates = [];
+
+      for (const el of allBodyEls) {
+        if (el === probeSpan || !isVisibleElement(el)) continue;
+        const tag = el.tagName;
+        if (
+          [
+            'HTML', 'BODY', 'MAIN', 'HEADER', 'FOOTER', 'NAV',
+            'SCRIPT', 'STYLE', 'NOSCRIPT', 'SVG', 'PATH',
+            'IMG', 'VIDEO', 'CANVAS', 'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA',
+          ].includes(tag)
+        ) {
+          continue;
+        }
+        const r = el.getBoundingClientRect();
+        if (r.width >= vw * 0.95 && r.height >= docHeight * 0.7) continue;
+        const s = getComputedStyle(el);
+        const bgRes = resolveCssColor(s.backgroundColor, el);
+        const borderInfo = hasVisibleSideBorder(s);
+        const hasShadow = Boolean(s.boxShadow && s.boxShadow !== 'none');
+        const maxRad = getMaxCornerRadiusPx(s, r);
+
+        if (bgRes && bgRes.alpha >= 0.08) {
+          const parentBg = el.parentElement ? resolveElementEffectiveBg(el.parentElement) : rootCanvas;
+          const effRec = makeColorRecord(compositeRgb(bgRes.rgb, bgRes.alpha, parentBg.rgb));
+
+          if (
+            !usesTintedLightCards &&
+            ((r.width >= 160 && r.height >= 60) || (r.width >= 240 && r.height >= 44)) &&
+            effRec.luminance >= 0.55 &&
+            colorDistance(effRec.rgb, [255, 255, 255]) >= 8 &&
+            effRec.chroma >= 0.023 &&
+            (colorDistance(effRec.rgb, rootCanvas.rgb) >= 4 || borderInfo.hasAny || maxRad > 0)
+          ) {
+            usesTintedLightCards = true;
+          }
+
+          if (
+            !hasDarkContentPanels &&
+            dominantPolarity === 'light' &&
+            r.width >= 180 &&
+            r.height >= 80 &&
+            bgRes.alpha >= 0.5 &&
+            effRec.luminance < 0.12 &&
+            !el.closest('header, nav, footer')
+          ) {
+            hasDarkContentPanels = true;
+          }
+        }
+
+        // Collect candidate card/panel containers for copyDensity
+        if (
+          r.width >= 160 &&
+          r.height >= 80 &&
+          !(r.width >= vw * 0.9 && r.height >= vh * 0.65) &&
+          !['SECTION', 'TABLE', 'THEAD', 'TBODY', 'TR', 'UL', 'OL', 'FORM'].includes(tag) &&
+          !el.closest('header, nav, footer')
+        ) {
+          const hasDistinctBg = Boolean(bgRes) && colorDistance(compositeRgb(bgRes.rgb, bgRes.alpha, rootCanvas.rgb), rootCanvas.rgb) > 4;
+          if (borderInfo.allFour || hasDistinctBg || maxRad > 0 || hasShadow) {
+            cardPanelCandidates.push(el);
+          }
+        }
+      }
+
+      const visualMotifs = {
+        hasDotOrGridBackground,
+        hasVerticalGuideRails,
+        hasInsetHeroFrame,
+        heroAlignment,
+        pillPrimaryCtaDetected,
+        usesTintedLightCards,
+        hasDarkContentPanels,
+      };
+
+      // 6. Copy-economy metrics
+      const h1WordCount = primaryH1El ? countWords(primaryH1El.innerText || primaryH1El.textContent) : 0;
+
+      let heroSubheadWordCount = 0;
+      const heroScope = heroBand || document.querySelector('main') || bodyEl;
+      if (heroScope) {
+        const subheadCandidates = Array.from(
+          heroScope.querySelectorAll('p, [class*="sub" i], [class*="lead" i], [class*="desc" i]'),
+        );
+        const subheadEl = subheadCandidates.find((el) => {
+          if (!isVisibleElement(el)) return false;
+          if (el === primaryH1El || (primaryH1El && el.contains(primaryH1El))) return false;
+          if (el.closest('nav, footer, button, a, aside, table, form, ul, ol')) return false;
+          const r = el.getBoundingClientRect();
+          if (r.top + window.scrollY > Math.max(vh * 1.25, 1100)) return false;
+          const words = countWords(el.innerText || el.textContent);
+          return words >= 3;
+        });
+        if (subheadEl) {
+          heroSubheadWordCount = countWords(subheadEl.innerText || subheadEl.textContent);
+        }
+      }
+
+      const headingWordCounts = [];
+      for (const h of document.querySelectorAll('h2, h3')) {
+        if (!isVisibleElement(h)) continue;
+        const words = countWords(h.innerText || h.textContent);
+        if (words > 0) headingWordCounts.push(words);
+      }
+      const medianHeadingWordCount = computeMedian(headingWordCounts);
+
+      const leafCards = cardPanelCandidates.filter((el) => {
+        const nested = cardPanelCandidates.filter((other) => other !== el && el.contains(other));
+        if (nested.length >= 2) return false;
+        if (nested.length === 1) {
+          const ownWords = countWords(el.innerText || el.textContent);
+          const childWords = countWords(nested[0].innerText || nested[0].textContent);
+          if (ownWords > 0 && childWords / ownWords >= 0.6) return false;
+        }
+        return true;
+      });
+      const cardWordCounts = leafCards
+        .map((el) => countWords(el.innerText || el.textContent))
+        .filter((w) => w > 0);
+      const medianCardWordCount = computeMedian(cardWordCounts);
+
+      const copyDensityTier =
+        medianCardWordCount <= 22 && h1WordCount <= 12
+          ? 'minimal'
+          : medianCardWordCount <= 45
+            ? 'balanced'
+            : 'editorial';
+
+      const copyDensity = {
+        h1WordCount,
+        heroSubheadWordCount,
+        medianHeadingWordCount,
+        medianCardWordCount,
+        copyDensityTier,
+      };
+
       if (probeSpan && probeSpan.parentNode) {
         probeSpan.parentNode.removeChild(probeSpan);
       }
@@ -1057,6 +1506,8 @@ export async function extractReference(url, outputPathOrDir = './reference-out')
         typography,
         geometryLock,
         alignmentAudit,
+        visualMotifs,
+        copyDensity,
         topInks,
         fontFaceSources,
       };
@@ -1094,6 +1545,8 @@ export async function extractReference(url, outputPathOrDir = './reference-out')
       typography,
       geometryLock: extracted.geometryLock,
       alignmentAudit: extracted.alignmentAudit,
+      visualMotifs: extracted.visualMotifs,
+      copyDensity: extracted.copyDensity,
       cssTokensSnippet,
     };
 
