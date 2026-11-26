@@ -2236,16 +2236,73 @@ export async function inspectSite(url, outputDir) {
       );
     }
 
+    // Compact interview-ready digest so Phase 0 can craft request-specific questions without parsing full dumps
+    const topPaletteHexes = [
+      ...(domAnalysis.colors?.topBackgrounds || []).slice(0, 4).map((c) => c.hex || c.color),
+      ...(domAnalysis.colors?.topAccents || []).slice(0, 3).map((c) => c.hex || c.color),
+    ].filter((v, i, arr) => Boolean(v) && arr.indexOf(v) === i);
+
+    const primaryFonts = [
+      domAnalysis.typography?.dominantDisplay?.fontFamily,
+      domAnalysis.typography?.dominantBody?.fontFamily,
+    ]
+      .filter(Boolean)
+      .map((f) => String(f).split(',')[0].replace(/^["']|["']$/g, '').trim())
+      .filter((v, i, arr) => Boolean(v) && arr.indexOf(v) === i);
+
+    const sectionArchetypes = (domAnalysis.sections || [])
+      .map((s) => s.archetype || s.tag)
+      .filter(Boolean)
+      .slice(0, 12);
+
+    const detectedInteractiveTriggers = interactiveStates
+      .map((s) => ({
+        label: s.label || s.role || s.tag,
+        role: s.role || null,
+        openedOverlay: Boolean(s.openedOverlay),
+        ariaChanged: Boolean(s.ariaChanged),
+        themeOrRootChanged: Boolean(s.themeOrRootChanged),
+      }))
+      .slice(0, 8);
+
+    const totalRevealedElements = entranceReveals.reduce((acc, r) => acc + (r.revealedCount || 0), 0);
+    const hasWebGL = domAnalysis.capturedShaders.length > 0 || (domAnalysis.limitations?.largeCanvasCount || 0) > 0;
+    const motionProfile =
+      hasWebGL || mergedTimelines.length > 0
+        ? 'kinetic-heavy'
+        : totalRevealedElements > 0 || mergedKeyframes.length >= 4 || hoverDeltas.length >= 2
+          ? 'balanced'
+          : 'minimal';
+
+    const reconDigest = {
+      title: await page.title().catch(() => ''),
+      topPaletteHexes,
+      primaryFonts,
+      commercialFontHints,
+      sectionCount: (domAnalysis.sections || []).length,
+      sectionArchetypes,
+      detectedInteractiveTriggers,
+      hasWebGL,
+      shaderCount: domAnalysis.capturedShaders.length,
+      scrollTimelinesCount: mergedTimelines.length,
+      entranceRevealCount: totalRevealedElements,
+      mobileCollapsedCount: mobileTelemetry.collapseSummary?.mobileSingleColCollapsedCount || 0,
+      headerHasMenuTrigger: Boolean(mobileTelemetry.collapseSummary?.headerHasMenuTrigger),
+      mediaCount: domAnalysis.mediaInventory?.totalCount || 0,
+      motionProfile,
+    };
+
     const report = {
       meta: {
         url,
         finalUrl: page.url(),
-        title: await page.title().catch(() => ''),
+        title: reconDigest.title,
         status: nav.status,
         blocked: false,
         capturedAt: new Date().toISOString(),
         cdpSnapshot,
       },
+      reconDigest,
       techStack: domAnalysis.techStack,
       cssVariables: mergedCssVars,
       customElements: domAnalysis.customElements,

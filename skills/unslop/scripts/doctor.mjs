@@ -23,6 +23,8 @@ const REQUIRED_SKILL_FILES = [
   'references/anti-slop-checklist.md',
   'references/product-discovery-interview.md',
   'references/product-brief-template.md',
+  'references/execution-modes-and-prompts.md',
+  'references/parallel-orchestration.md',
   'references/framework-adapters.md',
   'references/inspiration-translation-matrix.md',
   'references/interactive-component-patterns.md',

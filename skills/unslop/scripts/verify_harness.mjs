@@ -309,15 +309,20 @@ try {
   assert.equal(doctorReport.checks.playwright.ok, true, 'Playwright resolution must pass');
   assert.equal(doctorReport.checks.browserLaunch.skipped, true, 'Browser launch check should be skipped');
   assert.equal(doctorReport.checks.skillFiles.ok, true, `Missing skill files: ${JSON.stringify(doctorReport.checks.skillFiles.missing)}`);
-  assert.equal(doctorReport.checks.skillFiles.checkedCount, 16, 'Expected 16 verified core skill files');
+  assert.equal(doctorReport.checks.skillFiles.checkedCount, 18, 'Expected 18 verified core skill files');
 
-  console.log('8) Verifying inspectSite v1.1 telemetry on sample-v11-interactive.html...');
+  console.log('8) Verifying inspectSite v1.1/v1.2 telemetry & reconDigest on sample-v11-interactive.html...');
   const v11InspectOut = path.join(outRoot, 'inspect-v11');
   const v11Inspect = await inspectSite(
     `${baseUrl}/sample-v11-interactive.html`,
     v11InspectOut,
   );
   assert.equal(v11Inspect.meta.blocked, false, 'v1.1 fixture must not be blocked');
+  assert.ok(v11Inspect.reconDigest && typeof v11Inspect.reconDigest === 'object', 'Expected interview-ready reconDigest object');
+  assert.ok(v11Inspect.reconDigest.sectionCount >= 1, 'Expected reconDigest.sectionCount >= 1');
+  assert.ok(Array.isArray(v11Inspect.reconDigest.sectionArchetypes) && v11Inspect.reconDigest.sectionArchetypes.length >= 1, 'Expected reconDigest.sectionArchetypes');
+  assert.ok(['minimal', 'balanced', 'kinetic-heavy'].includes(v11Inspect.reconDigest.motionProfile), `Unexpected reconDigest.motionProfile: ${v11Inspect.reconDigest.motionProfile}`);
+  assert.ok(v11Inspect.reconDigest.mediaCount >= 3, `Expected reconDigest.mediaCount >= 3, got ${v11Inspect.reconDigest.mediaCount}`);
   assert.ok(
     Array.isArray(v11Inspect.interactiveStates) && v11Inspect.interactiveStates.length >= 1,
     'Expected probed interactiveStates entries',
