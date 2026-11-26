@@ -1,0 +1,422 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="description" content="Verification fixture covering interactive overlays, reduced-motion canvas freezing, theme contrast, entrance reveals, and responsive grid collapse." />
+  <link rel="icon" href="data:," />
+  <title>Meridian Field — Interactive Craft Verification Fixture</title>
+  <style>
+    :root {
+      --bg-canvas: #f6f3ed;
+      --bg-surface: #ffffff;
+      --border-subtle: #d6cfc2;
+      --text-primary: #181614;
+      --text-muted: #4d4841;
+      --accent: #a63d1b;
+      --accent-ink: #ffffff;
+    }
+    :root.dark {
+      --bg-canvas: #141312;
+      --bg-surface: #1f1d1b;
+      --border-subtle: #3a3530;
+      --text-primary: #f5f2eb;
+      --text-muted: #c8c0b4;
+      --accent: #e07a52;
+      --accent-ink: #141312;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      padding: 0;
+      background: var(--bg-canvas);
+      color: var(--text-primary);
+      font-family: ui-sans-serif, -apple-system, BlinkMacSystemFont, "Helvetica Neue", sans-serif;
+      font-size: 16px;
+      line-height: 1.6;
+      overflow-x: clip;
+    }
+    a {
+      color: var(--text-primary);
+    }
+    a:focus-visible, button:focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    .container {
+      max-width: 1120px;
+      margin: 0 auto;
+      padding: 0 20px;
+    }
+    header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .header-row {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      padding: 12px 0;
+    }
+    nav {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+    }
+    nav a {
+      display: inline-flex;
+      align-items: center;
+      min-height: 44px;
+      padding: 8px 12px;
+      text-decoration: none;
+      color: var(--text-primary);
+      border-radius: 6px;
+    }
+    .controls {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 8px;
+    }
+    .ctrl-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 44px;
+      min-width: 44px;
+      padding: 8px 14px;
+      border-radius: 8px;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-canvas);
+      color: var(--text-primary);
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+    }
+    .ctrl-btn.primary {
+      background: var(--accent);
+      border-color: var(--accent);
+      color: var(--accent-ink);
+    }
+    .hero {
+      min-height: 740px;
+      padding: 56px 0 48px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+    }
+    .hero-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+      gap: 32px;
+      align-items: center;
+    }
+    h1 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: clamp(2.25rem, 4.5vw, 3.75rem);
+      line-height: 1.08;
+      letter-spacing: -0.02em;
+      margin: 0 0 16px;
+      font-weight: 400;
+    }
+    .lead {
+      color: var(--text-muted);
+      margin: 0 0 24px;
+      max-width: 52ch;
+    }
+    .canvas-frame {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 12px;
+    }
+    #ambient-canvas {
+      width: 100%;
+      height: auto;
+      aspect-ratio: 16 / 9;
+      display: block;
+      border-radius: 8px;
+    }
+    .band {
+      padding: 64px 0;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    .band h2 {
+      font-family: Georgia, "Times New Roman", serif;
+      font-size: 2rem;
+      font-weight: 400;
+      margin: 0 0 24px;
+    }
+    .spec-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 20px;
+    }
+    .spec-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 20px;
+      opacity: 0;
+      transform: translateY(28px);
+      transition: opacity 220ms ease, transform 220ms ease;
+    }
+    .spec-card.is-visible {
+      opacity: 1;
+      transform: none;
+    }
+    .spec-card h3 {
+      margin: 0 0 8px;
+      font-size: 1.1rem;
+    }
+    .spec-card p {
+      margin: 0;
+      color: var(--text-muted);
+    }
+    .media-grid {
+      display: grid;
+      grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+      gap: 24px;
+      align-items: start;
+    }
+    .media-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 16px;
+    }
+    .media-card img {
+      display: block;
+      width: 100%;
+      height: auto;
+      border-radius: 6px;
+      margin-bottom: 12px;
+    }
+    .dialog-backdrop[hidden] {
+      display: none;
+    }
+    .dialog-backdrop {
+      position: fixed;
+      inset: 0;
+      background: rgba(20, 19, 18, 0.55);
+      display: grid;
+      place-items: center;
+      padding: 20px;
+      z-index: 40;
+    }
+    .dialog-panel {
+      background: var(--bg-surface);
+      color: var(--text-primary);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 24px;
+      max-width: 460px;
+      width: 100%;
+    }
+    footer {
+      padding: 36px 0;
+      color: var(--text-muted);
+      font-size: 0.9rem;
+    }
+    .footer-row {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+    }
+    .footer-links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    @media (max-width: 768px) {
+      .hero { min-height: auto; padding: 36px 0; }
+      .hero-grid, .spec-grid, .media-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <header>
+    <div class="container header-row">
+      <nav aria-label="Primary">
+        <a href="/">Meridian Field</a>
+        <a href="/secondary">Specifications</a>
+        <a href="#systems">Systems</a>
+        <a href="#gallery">Media</a>
+      </nav>
+      <div class="controls">
+        <button type="button" id="motion-toggle" class="ctrl-btn" aria-pressed="false">Motion: Full</button>
+        <button type="button" class="ctrl-btn" aria-label="Toggle dark mode" data-theme-toggle>Theme</button>
+        <!-- Plain button without explicit type attribute outside form: verifies HTML5 button handling -->
+        <button id="spec-dialog-trigger" class="ctrl-btn primary" aria-haspopup="dialog" aria-expanded="false" aria-controls="spec-dialog">Quick Spec</button>
+      </div>
+    </div>
+  </header>
+
+  <main id="top">
+    <section class="hero">
+      <div class="container hero-grid">
+        <div>
+          <h1>Measured craft across static and kinetic states.</h1>
+          <p class="lead">Deterministic reference document verifying interactive controls, entrance choreography, reduced-motion pausing, theme contrast, and responsive grid collapse.</p>
+          <a href="#" role="button" class="ctrl-btn" id="role-action-link">Inspect Ledger</a>
+        </div>
+        <div class="canvas-frame">
+          <canvas id="ambient-canvas" width="480" height="270"></canvas>
+        </div>
+      </div>
+    </section>
+
+    <section id="systems" class="band">
+      <div class="container">
+        <h2>Viewport Reveal Grid</h2>
+        <div class="spec-grid">
+          <article class="spec-card" data-reveal-card>
+            <h3>Contrast Discipline</h3>
+            <p>Both primary and alternate color modes resolve cleanly above WCAG 2.1 AA thresholds.</p>
+          </article>
+          <article class="spec-card" data-reveal-card>
+            <h3>Motion Control</h3>
+            <p>Procedural canvas loops halt immediately when the motion toggle switches to reduced mode.</p>
+          </article>
+          <article class="spec-card" data-reveal-card>
+            <h3>Responsive Collapse</h3>
+            <p>Three-column desktop layouts collapse cleanly to single-column mobile tracks at 390px.</p>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <section id="gallery" class="band">
+      <div class="container">
+        <h2>Media Aspect Ratios</h2>
+        <div class="media-grid">
+          <figure class="media-card" style="margin:0;">
+            <img
+              width="640"
+              height="360"
+              alt="Landscape architectural grid diagram"
+              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 640 360'%3E%3Crect width='640' height='360' fill='%232b241d'/%3E%3Crect x='48' y='48' width='240' height='264' fill='%23d6c4ae'/%3E%3Crect x='320' y='48' width='272' height='120' fill='%23a63d1b'/%3E%3Crect x='320' y='192' width='272' height='120' fill='%23594a3d'/%3E%3C/svg%3E"
+            />
+            <figcaption>16:9 structural frame</figcaption>
+          </figure>
+          <figure class="media-card" style="margin:0;">
+            <img
+              width="360"
+              height="360"
+              alt="Square material proportion study"
+              src="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 360 360'%3E%3Crect width='360' height='360' fill='%23ebe3d5'/%3E%3Ccircle cx='180' cy='180' r='110' fill='%23a63d1b'/%3E%3C/svg%3E"
+            />
+            <figcaption>1:1 proportion tile</figcaption>
+          </figure>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <div id="spec-dialog" class="dialog-backdrop" role="dialog" aria-modal="true" aria-labelledby="spec-dialog-title" hidden>
+    <div class="dialog-panel">
+      <h2 id="spec-dialog-title" style="margin-top:0;">Specification Summary</h2>
+      <p>Press Escape or activate the close button to dismiss this modal cleanly and restore focus.</p>
+      <button type="button" id="spec-dialog-close" class="ctrl-btn" aria-label="Close specification dialog">Close</button>
+    </div>
+  </div>
+
+  <footer>
+    <div class="container footer-row">
+      <span>Meridian Field — Verification Fixture</span>
+      <div class="footer-links">
+        <a href="/">Home</a>
+        <a href="/secondary">Specifications</a>
+      </div>
+    </div>
+  </footer>
+
+  <script>
+    const canvas = document.getElementById('ambient-canvas');
+    const ctx = canvas.getContext('2d');
+    let phase = 0;
+    let motionPaused = false;
+    let rafId = 0;
+
+    function renderFrame() {
+      ctx.fillStyle = '#241d17';
+      ctx.fillRect(0, 0, canvas.width, canvas.height);
+      const x = 40 + (Math.sin(phase) * 0.5 + 0.5) * 320;
+      const y = 75 + Math.cos(phase * 0.7) * 30;
+      ctx.fillStyle = '#d49a6a';
+      ctx.fillRect(x, y, 80, 80);
+      ctx.fillStyle = '#f2e8dc';
+      ctx.fillRect(canvas.width - x - 40, 120, 48, 48);
+      if (!motionPaused) {
+        phase += 0.1;
+        rafId = requestAnimationFrame(renderFrame);
+      }
+    }
+    renderFrame();
+
+    const motionBtn = document.getElementById('motion-toggle');
+    motionBtn.addEventListener('click', () => {
+      motionPaused = !motionPaused;
+      document.documentElement.classList.toggle('reduced-motion', motionPaused);
+      motionBtn.setAttribute('aria-pressed', String(motionPaused));
+      motionBtn.textContent = motionPaused ? 'Motion: Reduced' : 'Motion: Full';
+      if (motionPaused) {
+        cancelAnimationFrame(rafId);
+      } else {
+        renderFrame();
+      }
+    });
+
+    const themeBtn = document.querySelector('[data-theme-toggle]');
+    themeBtn.addEventListener('click', () => {
+      document.documentElement.classList.toggle('dark');
+    });
+
+    const dialogTrigger = document.getElementById('spec-dialog-trigger');
+    const dialogEl = document.getElementById('spec-dialog');
+    const dialogClose = document.getElementById('spec-dialog-close');
+
+    function setDialogOpen(open) {
+      dialogTrigger.setAttribute('aria-expanded', String(open));
+      dialogEl.hidden = !open;
+      if (!open) dialogTrigger.focus({ preventScroll: true });
+    }
+
+    dialogTrigger.addEventListener('click', () => {
+      const isOpen = dialogTrigger.getAttribute('aria-expanded') === 'true';
+      setDialogOpen(!isOpen);
+    });
+    dialogClose.addEventListener('click', () => setDialogOpen(false));
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && dialogTrigger.getAttribute('aria-expanded') === 'true') {
+        setDialogOpen(false);
+      }
+    });
+
+    const revealCards = Array.from(document.querySelectorAll('[data-reveal-card]'));
+    if ('IntersectionObserver' in window) {
+      const observer = new IntersectionObserver(
+        (entries) => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              observer.unobserve(entry.target);
+            }
+          }
+        },
+        { threshold: 0.15 },
+      );
+      revealCards.forEach((card) => observer.observe(card));
+    } else {
+      revealCards.forEach((card) => card.classList.add('is-visible'));
+    }
+  </script>
+</body>
+</html>

@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.1.0] - 2026-11-19
+
+### Added
+- **Environment Preflight & Codebase Stack Detection:**
+  - `skills/unslop/scripts/doctor.mjs` (`npm run doctor`): verifies Node `>= 22.6.0`, optional REA Node compatibility (`^22.23.4 || ^24.22.1 || >=26.12.1`), Playwright resolution, Chromium/Chrome launchability (`--no-launch` supported), and core skill manifest files with actionable remediation steps.
+  - `skills/unslop/scripts/detect_stack.mjs` (`npm run detect-stack`): read-only detector for framework, router, TypeScript, Tailwind CSS v3/v4, UI & motion libraries, font packages, `:root`/`@theme` CSS custom properties, route files, asset directories, and tailored migration advice.
+- **Five Launch-Readiness Engineering References (`skills/unslop/references/`):**
+  - `product-discovery-interview.md`: repo-first content inventory rule and bounded 5-question intake protocol.
+  - `product-brief-template.md`: structured `PRODUCT_BRIEF.md` contract with explicit no-fabrication redlines.
+  - `framework-adapters.md`: production integration rules for Next.js App Router (`'use client'` boundaries, `useEffect` cleanup, `next/font`), Vite + React, Tailwind CSS v3/v4 (`@theme inline` + shadcn/ui variable bridge), Vue/Nuxt/Astro, and strangler-fig hybrid refactoring.
+  - `inspiration-translation-matrix.md`: 7-archetype Adapt/Merge/Drop translation table and 4-axis Multi-Source Remix Matrix (Layout / Palette / Typography / Motion).
+  - `interactive-component-patterns.md`: accessible Vanilla ESM + React state-machine blueprints for Command Palette (`Cmd+K`), Mega-Menu, Filterable Catalog + Detail Drawer, Pricing Toggle & Calculator, Multi-Step Validated Form, and Slide-Over Cart/Booking Drawer.
+- **Forensic Inspector Upgrades (`skills/unslop/scripts/inspect_site.mjs`):**
+  - Safe non-navigating interactive state click-probing (`interactiveStates`) capturing ARIA changes, opened overlays, theme/root mutations, and `Escape` dismissal.
+  - Viewport-triggered scroll entrance reveal detection (`motion.entranceReveals`).
+  - Full-page mobile capture (`mobile-full.png` / `screenshots.mobileFull`) and desktop-to-mobile responsive collapse summary (`mobile.collapseSummary`).
+  - Structured media inventory (`mediaInventory`) tracking visible `<img>`, `<video>`, and `<canvas>` counts, dimensions, and aspect ratios.
+- **Closed-Loop Auditor Upgrades (`skills/unslop/scripts/audit_ui.mjs`):**
+  - Core Web Vitals CLS tracking via `PerformanceObserver` (`performance.cls`) and oversized image payload warnings (`performance.oversizedImages` > 500 KB).
+  - Semantic link & heading hygiene checks (`semantics`: broken `#anchor` links, dead `href="#"` placeholders, `<title>`, meta description, `h1Count`, skipped heading levels).
+  - Active Motion-Off toggle verification (`kinetic.reducedMotionToggleCheck`) confirming animated `<canvas>` frames actually stop.
+  - Active alternate-theme WCAG AA contrast verification (`accessibility.alternateThemeContrast`) and interactive overlay `Escape` dismissal testing (`accessibility.interactiveOverlayChecks`).
+  - Multi-route batch auditing (`auditMultiRoute` / `--routes /,/pricing,/about`) writing per-route reports plus consolidated `multi-route-audit.json` with shared header/footer consistency checks.
+
+### Changed
+- Upgraded [`skills/unslop/SKILL.md`](skills/unslop/SKILL.md) to a 6-stage pipeline (Phase 0 – Phase 5) with mandatory Phase Completion Gates linking all 15 reference guides.
+- Expanded `scripts/validate-skill.mjs` to enforce version synchronization with `package-lock.json` and `SKILL.md` metadata, verify every `skills/unslop/references/*.md` file is linked from `SKILL.md`, and check relative markdown links across all reference documents.
+- Expanded `skills/unslop/scripts/verify_harness.mjs` and `fixtures/` to deterministically test all v1.1 detection, preflight, inspection, and single/multi-route audit capabilities.
+
 ## [1.0.0] - 2026-11-19
 
 ### Added
