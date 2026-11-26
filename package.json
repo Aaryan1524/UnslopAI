@@ -1,6 +1,6 @@
 {
   "name": "unslop-ai",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "description": "Portable Agent Skill suite for forensic UI deconstruction, WebGL and CSS scroll choreography translation, anti-slop refactoring, and closed-loop Playwright kinetic QA.",
   "license": "MIT",

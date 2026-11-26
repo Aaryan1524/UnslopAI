@@ -2,7 +2,7 @@
 
 # Unslop
 
-**Forensic UI deconstruction, kinetic motion translation, and closed-loop Playwright QA — packaged as a portable Agent Skill.**
+**Inspect-first adaptive UI discovery, forensic motion & shader deconstruction, parallel modular crafting, and closed-loop Playwright QA — packaged as one portable Agent Skill.**
 
 [![CI](https://github.com/Aaryan1524/UnslopAI/actions/workflows/ci.yml/badge.svg)](https://github.com/Aaryan1524/UnslopAI/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-black.svg)](./LICENSE)
@@ -10,9 +10,9 @@
 [![Node.js](https://img.shields.io/badge/Node-%3E%3D22.6-339933.svg)](https://nodejs.org)
 [![Playwright](https://img.shields.io/badge/Playwright-Chromium%20QA-45ba4b.svg)](https://playwright.dev)
 
-*Turn generic, flat interfaces into crafted, accessible, kinetic web experiences — backed by ground-truth browser telemetry instead of guesswork.*
+*One minimal `/unslop` skill that inspects your workspace and inspiration site first, interviews you with reference-grounded questions, locks `.unslop/brief.md`, and builds fast prototypes, launch-ready sites, vibe-transfer redesigns, or single-component animation ports with automated Chromium QA.*
 
-[Installation](#installation) · [Workflows](#three-workflows) · [Pipeline](#6-stage-pipeline-phase-0--phase-5) · [CLI Tooling](#cli-tooling) · [Capabilities & Ethics](#capabilities--ethics-contract) · [Contributing](./CONTRIBUTING.md)
+[Installation](#installation) · [Execution Presets](#four-execution-presets) · [Starter Prompts](#starter-prompts) · [Pipeline](#adaptive-pipeline-phase-0--phase-4) · [CLI Tooling](#cli-tooling) · [Capabilities & Ethics](#capabilities--ethics-contract) · [Contributing](./CONTRIBUTING.md)
 
 </div>
 
@@ -20,17 +20,17 @@
 
 ## Why Unslop
 
-Most frontend refactors and redesigns collapse into the same predictable failures: unprompted purple gradients, cookie-cutter three-card grids, fabricated placeholder copy, broken framework integration, missing focus rings, mobile horizontal overflow, blank or frozen `<canvas>` shaders, and non-functional overlay shells.
+Most frontend builds and redesigns fail in predictable ways: generic boilerplate interviews that ignore what already exists, unprompted template styling, fabricated placeholder copy, broken framework integration, missing focus rings, mobile horizontal overflow, blank `<canvas>` shaders, and non-functional overlays.
 
-`unslop` replaces single-shot guesswork with an empirical browser-driven pipeline:
+`unslop` replaces single-shot guesswork with an inspect-first, adaptive browser-driven pipeline:
 
-| Dimension | Unstructured UI Generation | With `unslop` (`v1.1.0`) |
+| Dimension | Unstructured UI Generation | With `unslop` (`v1.2.0`) |
 | :--- | :--- | :--- |
-| **Discovery & Stack Fit** | Invents placeholder claims and ignores existing frameworks/tokens | Runs `doctor.mjs` + `detect_stack.mjs` (Next.js, Vite, Tailwind v3/v4, shadcn/ui, Vue/Astro), inventories real repo truth, and locks `PRODUCT_BRIEF.md` |
-| **Inspiration Analysis** | Guesses layout from text or a single desktop thumbnail | Extracts area-weighted colors, CSS vars, fonts, cropped component PNGs, `mobile-full.png` collapse metrics, `mediaInventory`, `interactiveStates`, viewport `entranceReveals`, and 4-frame sticky scroll filmstrips (`t0`–`t3`) |
-| **Shaders & CSS Motion** | Ignores WebGL and scroll animations, replacing them with flat boxes | Hooks `WebGL/WebGL2.shaderSource` at runtime (zero source maps needed) and captures CORS-proof CSS `@keyframes`, `view-timeline`, and `cubic-bezier(...)` curves |
-| **Architecture & Interactivity** | Crams complex pages into monolithic files with dead buttons | Translates bands via Adapt/Merge/Drop matrix into `DESIGN.md` + `COMPONENTS.md`, framework adapters, and accessible state-machine patterns (`Cmd+K`, drawers, calculators, multi-step forms) |
-| **Closed-Loop Verification** | Assumes code works without rendering or clicking it | Runs single- or multi-route headless Chromium audits: CLS, oversized images, semantic link/heading hygiene, raw `<canvas>` pixel checks, active Motion-Off freeze, alternate-theme WCAG AA contrast, `Escape` overlay dismissal, and `320px`–`1440px` layout checks |
+| **Phase 0 Discovery** | Jumps straight to code or asks generic boilerplate questions | Runs `doctor.mjs` + `detect_stack.mjs` + `inspect_site.mjs` (`reconDigest`) **first**, conducts 2–3 request-specific Q&A rounds grounded in real tokens/sections, and locks `.unslop/brief.md` with user approval before coding |
+| **Speed vs. Depth Control** | One rigid workflow for hackathons, businesses, and quick animations | Adapts cleanly across **`fast`**, **`standard`**, **`deep`** (launch-ready + Two-Wave parallel build), and **`extract-component`** presets |
+| **Inspiration Analysis** | Guesses layout from text or a single desktop thumbnail | Extracts `reconDigest`, area-weighted colors, CSS vars, fonts, cropped component PNGs, `mobile-full.png` collapse metrics, `mediaInventory`, `interactiveStates`, viewport `entranceReveals`, GPU `shaderSource` hooks, CORS-proof CSS timelines, and 4-frame sticky scroll filmstrips (`t0`–`t3`) |
+| **Parallel Craft & Architecture** | Crams complex pages into monolithic files or causes conflicting edits | Wave 1 shared foundation → Wave 2 disjoint parallel workers (assets + chrome + kinetic + interactive routes) → Wave 3 independent fresh-context reviewer, with sequential fallback on single-agent hosts |
+| **Closed-Loop Verification** | Assumes code works without rendering or clicking it | Runs single- or multi-route headless Chromium audits: CLS, oversized images, semantic link/heading hygiene, raw `<canvas>` checks, active Motion-Off freeze, alternate-theme WCAG AA contrast, `Escape` overlay dismissal, and `320px`–`1440px` overflow checks |
 
 ---
 
@@ -69,44 +69,49 @@ npx playwright install chromium
 
 ---
 
-## Three Workflows
+## Four Execution Presets
 
-The single unified [`unslop`](./skills/unslop/SKILL.md) skill locks the right workflow from your request:
+The single unified [`unslop`](./skills/unslop/SKILL.md) skill adapts its depth and workflow during Phase 0:
 
-1. **Unslop Existing UI (`unslop-existing`)**
-   Detect your framework and tokens with `detect_stack.mjs`, audit the running app across routes for contrast, CLS, semantic hygiene, clipped text, broken media/canvases, and mobile overflow — then refactor component by component without breaking existing routes or logic.
-   > *"Audit `http://localhost:3000` with unslop, fix the generic layout, typography contrast, and mobile overflow, and re-verify until zero errors remain."*
+| Preset | Best For | What Runs |
+| :--- | :--- | :--- |
+| **`fast`** | Hackathons, rapid prototypes, quick visual spikes | Quick recon + 1–2 short Q&A rounds (or *"Use best defaults"*) → compact `.unslop/brief.md` → single modular build pass (no heavy custom shaders/artgen) → 1 `audit_ui.mjs` pass |
+| **`standard`** | Day-to-day product pages and existing-app redesigns | Full recon + 2–3 grounded Q&A rounds → `.unslop/brief.md`, `DESIGN.md`, `COMPONENTS.md` → modular build → 1–2 `audit_ui.mjs` passes |
+| **`deep`** | Launch-ready business websites & flagship interactive apps | Full 4-layer extraction (+ optional REA) + grounded Q&A → full contracts → **Two-Wave Disjoint Parallel Orchestration** + cohesive media → mandatory 2-pass `audit_ui.mjs --routes` + **Independent Fresh-Context Reviewer** |
+| **`extract-component`** | Technical devs dissecting or porting **one specific animation, shader, or interactive widget** | Targeted `inspect_site.mjs` (`css-motion.json`, `shaders.json`, `interactiveStates`) + focused technical Q&A → isolated drop-in component matching your detected stack → targeted QA |
 
-2. **Inspiration Deconstruction & Remix (`inspiration-remix`)**
-   Lock real product truth in `PRODUCT_BRIEF.md`, forensically dissect one or more inspiration URLs/screenshots (DOM, interactive states, viewport reveals, mobile collapse, WebGL shaders, CSS scroll-timelines, filmstrips), translate bands via the Adapt/Merge/Drop matrix into `DESIGN.md` + `COMPONENTS.md`, and build an original interface.
-   > *"Inspect `https://example.com` using unslop and build an original landing page for our studio in a warm editorial palette, keeping the scroll cadence and shader atmosphere."*
-
-3. **Hybrid Refactoring (`hybrid`)**
-   Extract structural and kinetic grammar from an inspiration reference and apply a safe strangler-fig migration onto an existing Next.js, Vite, Tailwind, Vue, or Astro codebase while preserving working business logic and URLs.
-   > *"Deconstruct `https://example.com` with unslop and refactor our dashboard header, typography scale, and card density to adopt its rhythm."*
+See [`skills/unslop/references/execution-modes-and-prompts.md`](./skills/unslop/references/execution-modes-and-prompts.md) for the complete preset matrix.
 
 ---
 
-## 6-Stage Pipeline (Phase 0 – Phase 5)
+## Starter Prompts
+
+You get the strongest first pass by stating **what you are building (or your existing repo)**, **optional inspiration URL(s) + what specifically you like**, and **your desired depth (`fast` vs. `deep`)**:
+
+- **Fast Prototype (`fast`):**
+  > *"Use unslop in fast mode. Build a working landing page and interactive demo for `[Product Name]` inspired by `[https://reference.example]`. Keep the pacing and typography feel, use clean defaults where unspecified, and verify it renders cleanly."*
+- **Launch-Ready Website (`deep` + Parallel Build):**
+  > *"Use unslop in deep / launch-ready mode to build a complete website for `[Product Name]`. Inspiration: `[https://reference.example]` — I specifically like `[the hero cadence, frosted search nav, and 2-column feature grid]`. Run the discovery interview first, lock `.unslop/brief.md`, then build with parallel orchestration and full multi-route QA."*
+- **Redesign Existing Site / Vibe Transfer:**
+  > *"Use unslop to redesign my existing app (`[http://localhost:3000]`) using `[https://reference.example]` as visual inspiration. Keep all my existing product copy, routes, and working logic intact — only transfer the layout spacing, typography hierarchy, palette feel, and motion."*
+- **Dissect & Port One Animation / Component (`extract-component`):**
+  > *"Use unslop in extract-component mode. Inspect `[https://reference.example]`, reverse-engineer `[the sticky scroll reveal / WebGL background / frosted search overlay]`, and implement an original reduced-motion-safe version inside my existing repo without touching unrelated pages."*
+
+---
+
+## Adaptive Pipeline (Phase 0 – Phase 4)
 
 ```mermaid
 flowchart LR
-    P0["Phase 0: doctor.mjs Preflight"] --> P1["Phase 1: detect_stack + PRODUCT_BRIEF.md"]
-    P1 --> P2["Phase 2: 4-Layer Forensic Extraction"]
-    P2 --> P3["Phase 3: Translation Matrix + DESIGN.md + COMPONENTS.md"]
-    P3 --> P4["Phase 4: Modular Build & Interactive State Machines"]
-    P4 --> P5["Phase 5: Closed-Loop Kinetic, Perf & A11y QA"]
-    P5 -->|"Refine axes < 4/5"| P4
+    P0["Phase 0: Silent Recon\n(doctor + detect_stack + inspect)\n-> Grounded Adaptive Q&A\n-> .unslop/brief.md Approval"] --> R{"Execution Router\nfast | standard | deep | extract"}
+    R --> P1["Phase 1: Deep Telemetry &\nFilmstrip Review (+ optional REA)"]
+    P1 --> P2["Phase 2: Translation Matrix\n.unslop/DESIGN.md & COMPONENTS.md"]
+    P2 --> P3["Phase 3: Wave 1 Foundation\n-> Wave 2 Parallel Disjoint Build"]
+    P3 --> P4["Phase 4: audit_ui.mjs (--routes)\n+ Fresh-Context Reviewer"]
+    P4 -->|"Pass-2 Polish (axes < 4/5)"| P3
 ```
 
-| Phase | Purpose | Gate Artifacts |
-| :--- | :--- | :--- |
-| **0. Preflight** | Verify Node runtime, Playwright resolution, Chromium/Chrome launch, optional REA support, and skill files | `doctor.mjs` (`healthy: true`) |
-| **1. Discovery & Stack** | Detect target framework/tokens, inventory repo truth, run bounded 5-question intake, disclose capabilities | `stack-report.json`, `PRODUCT_BRIEF.md` |
-| **2. Forensic Extraction** | Capture DOM/CSS/GPU shaders, interactive click-probed states, entrance reveals, `mobile-full.png`, `mediaInventory`, and scroll filmstrips | `report.json`, `shaders.json`, `css-motion.json`, `components/*.png`, `mobile-full.png` |
-| **3. Contracts & Remix** | Classify bands (Adapt/Merge/Drop), lock semantic tokens, art-direction brief, and component/motion specs | `DESIGN.md`, `COMPONENTS.md` |
-| **4. Modular Build** | Implement framework-adapted tokens, `MotionController`, cohesive media, kinetic bands, and accessible interactive patterns | Modular `src/` codebase |
-| **5. Closed-Loop QA** | Verify CLS, oversized images, semantic hygiene, raw canvases, Motion-Off freeze, alt-theme contrast, `Escape` overlays, and multi-route chrome consistency across 2+ passes | `audit.json` / `multi-route-audit.json`, `desktop.png`, `mobile.png`, `sections/*.png` |
+All scratch recon captures, contracts, and audit outputs live neatly inside **`.unslop/`** (`brief.md`, `stack-report.json`, `inspect/`, `DESIGN.md`, `COMPONENTS.md`, `audit/`) so your project root stays clean.
 
 ---
 
@@ -115,21 +120,21 @@ flowchart LR
 Run the standalone scripts directly from the repository root (or via `<skill-dir>/scripts/`):
 
 ```bash
-# 0. Check environment readiness (Node, Playwright, Chromium/Chrome, skill files)
+# 0. Check environment readiness (Node, Playwright, Chromium/Chrome, 18 core skill files)
 npm run doctor
 
 # 1. Inspect an existing target codebase (read-only stack, routes, CSS tokens, migration advice)
-npm run detect-stack -- ./my-app ./stack-report.json
+npm run detect-stack -- ./my-app ./.unslop/stack-report.json
 
-# 2. Forensically inspect a public inspiration website (DOM, CSS timelines, GPU shaders, interactive states, mobile-full & filmstrips)
-npm run inspect -- https://example.com ./inspect-out
+# 2. Forensically inspect a public inspiration website (reconDigest, DOM, CSS timelines, GPU shaders, interactive states, mobile-full & filmstrips)
+npm run inspect -- https://example.com ./.unslop/inspect
 
 # 3. Optional: Page-scoped REA accessibility, script-pattern & source-map enrichment (Node ^22.23.4 || ^24.22.1 || >=26.12.1)
-npm run rea-inspect -- https://example.com ./inspect-out
+npm run rea-inspect -- https://example.com ./.unslop/inspect
 
 # 4. Audit a local app or multi-route build (CLS, oversized images, semantics, raw <canvas>, Motion-Off, alt-theme contrast, Esc overlays)
-npm run audit -- http://127.0.0.1:3000 ./audit-out
-npm run audit -- http://127.0.0.1:3000 ./audit-out --routes /,/pricing,/about
+npm run audit -- http://127.0.0.1:3000 ./.unslop/audit/pass-1
+npm run audit -- http://127.0.0.1:3000 ./.unslop/audit/pass-1 --routes /,/pricing,/about
 
 # 5. Run full repository validation (manifests/links + TypeScript check + Playwright regression harness)
 npm run check
@@ -148,19 +153,21 @@ UnslopAI/
 ├── fixtures/                             # Deterministic offline fixtures (clean, slop, kinetic shader/scroll, interactive)
 └── skills/
     └── unslop/
-        ├── SKILL.md                      # 6-stage master playbook with explicit completion gates
+        ├── SKILL.md                      # Unified adaptive playbook with Phase 0 discovery & completion gates
         ├── package.json                  # Standalone runtime manifest
         ├── scripts/
         │   ├── browser_helper.mjs        # Dynamic Playwright resolver, Chrome fallback & block detector
         │   ├── doctor.mjs                # Runtime, Playwright, browser launch & manifest preflight
         │   ├── detect_stack.mjs          # Read-only framework, router, Tailwind/shadcn & CSS token detector
-        │   ├── inspect_site.mjs          # 4-layer forensic dissolver (GPU shaders, CSS, states, reveals, mobile-full)
+        │   ├── inspect_site.mjs          # 4-layer forensic dissolver + interview-ready reconDigest
         │   ├── rea_inspect.mjs           # Optional framework-agnostic REA bundle & source-map extractor
         │   ├── audit_ui.mjs              # Performance, semantic, kinetic, raw-canvas, WCAG AA & multi-route auditor
-        │   └── verify_harness.mjs        # Automated Playwright regression suite
+        │   └── verify_harness.mjs        # 10-suite automated Playwright regression harness
         ├── references/
         │   ├── product-discovery-interview.md
         │   ├── product-brief-template.md
+        │   ├── execution-modes-and-prompts.md
+        │   ├── parallel-orchestration.md
         │   ├── framework-adapters.md
         │   ├── inspiration-translation-matrix.md
         │   ├── interactive-component-patterns.md
@@ -183,7 +190,7 @@ UnslopAI/
 ## Capabilities & Ethics Contract
 
 - **Adapt & Synthesize, Never Clone:** Transfers layout rhythm, typographic contrast, color area ratios, and kinetic physics onto 100% original brand copy, original shaders/SVGs, open-source typography, and bespoke media. Never copies logos, trademarks, copyrighted imagery, or proprietary binaries.
-- **No-Fabrication Discipline:** Inventories real repository content first and enforces explicit no-fabrication redlines in `PRODUCT_BRIEF.md` (zero invented metrics, testimonials, or placeholder logos).
+- **No-Fabrication Discipline:** Inventories real repository content first and enforces explicit no-fabrication redlines in `.unslop/brief.md` (zero invented metrics, testimonials, or placeholder logos).
 - **Strict Stop-on-Block Boundary:** If a target URL returns HTTP `401`/`403`/`429`/`503`, a CAPTCHA, Cloudflare Turnstile, or a login gate, automation halts immediately and falls back to user-provided screenshots. Access controls are never bypassed.
 - **Reduced Motion First:** Every procedural WebGL shader, Canvas animation, CSS `view-timeline`, and scroll track honors both `@media (prefers-reduced-motion: reduce)` and a verified interactive Motion toggle.
 
@@ -199,7 +206,7 @@ All changes are verified against deterministic Playwright regression suites in G
 npm run doctor           # Environment & Chromium launch readiness
 npm run validate:skill   # Synced versions (including package-lock.json), frontmatter, reference links, script syntax
 npm run verify:types     # TypeScript asset verification
-npm run verify           # End-to-end Playwright regression harness
+npm run verify           # 10-suite Playwright regression harness
 ```
 
 - **Changelog:** [`CHANGELOG.md`](./CHANGELOG.md)

@@ -5,6 +5,22 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2026-11-26
+
+### Added
+- **Inspect-First Adaptive Discovery & `.unslop/brief.md` Spec Lock:**
+  - Restructured Phase 0 in [`skills/unslop/SKILL.md`](skills/unslop/SKILL.md) and [`skills/unslop/references/product-discovery-interview.md`](skills/unslop/references/product-discovery-interview.md) to run silent recon (`doctor.mjs`, `detect_stack.mjs`, `inspect_site.mjs`) **before** asking questions, so 2–3 adaptive Q&A rounds are grounded in actual extracted tokens, sections, animations, and repository structure (with `AskUserQuestion` support, numbered chat fallback, and a *"Use best defaults"* shortcut).
+  - Standardized all scratch telemetry and contracts under `.unslop/` (`brief.md`, `stack-report.json`, `inspect/`, `DESIGN.md`, `COMPONENTS.md`, `audit/`) with an explicit user approval gate on `.unslop/brief.md` before writing code.
+- **Execution Presets, Starter Prompts & Parallel Orchestration Playbooks:**
+  - `skills/unslop/references/execution-modes-and-prompts.md`: defines 4 adaptive presets (`fast`, `standard`, `deep`, `extract-component`) plus 5 copy-paste starter prompt recipes.
+  - `skills/unslop/references/parallel-orchestration.md`: defines the **Two-Wave Disjoint Fan-Out** parallel build strategy (Wave 1 shared foundation → Wave 2 disjoint parallel asset/component/route workers → Wave 3 integration + independent fresh-context read-only reviewer) with seamless sequential fallback on single-agent hosts.
+- **Interview-Ready Recon Digest (`inspect_site.mjs`):**
+  - Added compact `reconDigest` summary block in `report.json` (`topPaletteHexes`, `primaryFonts`, `sectionCount`, `sectionArchetypes`, `detectedInteractiveTriggers`, `hasWebGL`, `shaderCount`, `scrollTimelinesCount`, `entranceRevealCount`, `mobileCollapsedCount`, `headerHasMenuTrigger`, `mediaCount`, `motionProfile`) to ground Phase 0 questions without parsing raw dumps.
+
+### Changed
+- Updated `skills/unslop/scripts/doctor.mjs` and `skills/unslop/scripts/verify_harness.mjs` to validate all 18 core skill files and assert `reconDigest` schema fields.
+- Synchronized version `1.2.0` across `package.json`, `package-lock.json`, `skills/unslop/package.json`, `.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`, and `skills/unslop/SKILL.md`, and updated `README.md` and `plan.md`.
+
 ## [1.1.0] - 2026-11-19
 
 ### Added
