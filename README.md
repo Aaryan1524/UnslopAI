@@ -24,13 +24,13 @@ Most frontend builds and redesigns fail in predictable ways: generic boilerplate
 
 `unslop` replaces single-shot guesswork with an inspect-first, adaptive browser-driven pipeline:
 
-| Dimension | Unstructured UI Generation | With `unslop` (`v1.2.0`) |
+| Dimension | Unstructured UI Generation | With `unslop` (`v1.3.0`) |
 | :--- | :--- | :--- |
-| **Phase 0 Discovery** | Jumps straight to code or asks generic boilerplate questions | Runs `doctor.mjs` + `detect_stack.mjs` + `inspect_site.mjs` (`reconDigest`) **first**, conducts 2–3 request-specific Q&A rounds grounded in real tokens/sections, and locks `.unslop/brief.md` with user approval before coding |
+| **Phase 0 Discovery** | Jumps straight to code or asks generic boilerplate questions | Runs `doctor.mjs` + `detect_stack.mjs` + `inspect_site.mjs` + `extract_reference.mjs` (`reference-tokens.json`) **first**, locks section rhythm, 3-radius budget, and navbar purity into `.unslop/brief.md` before coding |
+| **Typography & Surfaces** | Defaults to bold `700` Inter/Space Grotesk & cold `#0B0D14` navy-slate | Enforces curated pairings (`type-pairings.md`), `400`/`500` optical weights, `craft-primitives.md` (`2%` SVG grain, `1px` edge-to-edge hairlines, `#151414` warm charcoal), and banned default-font rules |
 | **Speed vs. Depth Control** | One rigid workflow for hackathons, businesses, and quick animations | Adapts cleanly across **`fast`**, **`standard`**, **`deep`** (launch-ready + Two-Wave parallel build), and **`extract-component`** presets |
-| **Inspiration Analysis** | Guesses layout from text or a single desktop thumbnail | Extracts `reconDigest`, area-weighted colors, CSS vars, fonts, cropped component PNGs, `mobile-full.png` collapse metrics, `mediaInventory`, `interactiveStates`, viewport `entranceReveals`, GPU `shaderSource` hooks, CORS-proof CSS timelines, and 4-frame sticky scroll filmstrips (`t0`–`t3`) |
-| **Parallel Craft & Architecture** | Crams complex pages into monolithic files or causes conflicting edits | Wave 1 shared foundation → Wave 2 disjoint parallel workers (assets + chrome + kinetic + interactive routes) → Wave 3 independent fresh-context reviewer, with sequential fallback on single-agent hosts |
-| **Closed-Loop Verification** | Assumes code works without rendering or clicking it | Runs single- or multi-route headless Chromium audits: CLS, oversized images, semantic link/heading hygiene, raw `<canvas>` checks, active Motion-Off freeze, alternate-theme WCAG AA contrast, `Escape` overlay dismissal, and `320px`–`1440px` overflow checks |
+| **Inspiration Analysis** | Cosplays aesthetic from memory or a single desktop thumbnail | Measures exact pixel-area polarity ratios, modal radii, section alignment %, `reconDigest`, `mobile-full.png`, `interactiveStates`, GPU `shaderSource` hooks, CORS-proof CSS timelines, and scroll filmstrips |
+| **Closed-Loop QA & Pass-3 Critic** | Audits DOM math once (missing dead voids & wrapped chips) | Runs `audit_ui.mjs` (CLS, WCAG AA contrast, `studioCraft` checks for radius drift, >2 centered pyramids, stretched card voids, wrapped mono bars & header clutter) + captures `critic-desktop/mobile-*.png` tiles for Pass-3 Visual Critic (`>= 8/10`) |
 
 ---
 
@@ -126,13 +126,14 @@ npm run doctor
 # 1. Inspect an existing target codebase (read-only stack, routes, CSS tokens, migration advice)
 npm run detect-stack -- ./my-app ./.unslop/stack-report.json
 
-# 2. Forensically inspect a public inspiration website (reconDigest, DOM, CSS timelines, GPU shaders, interactive states, mobile-full & filmstrips)
+# 2. Forensically inspect a public inspiration website + extract measured DOM/CSS reference tokens
 npm run inspect -- https://example.com ./.unslop/inspect
+npm run extract-ref -- https://example.com ./.unslop/inspect/reference-tokens.json
 
 # 3. Optional: Page-scoped REA accessibility, script-pattern & source-map enrichment (Node ^22.23.4 || ^24.22.1 || >=26.12.1)
 npm run rea-inspect -- https://example.com ./.unslop/inspect
 
-# 4. Audit a local app or multi-route build (CLS, oversized images, semantics, raw <canvas>, Motion-Off, alt-theme contrast, Esc overlays)
+# 4. Audit a local app or multi-route build + generate Pass-3 visual critic tiles
 npm run audit -- http://127.0.0.1:3000 ./.unslop/audit/pass-1
 npm run audit -- http://127.0.0.1:3000 ./.unslop/audit/pass-1 --routes /,/pricing,/about
 
@@ -159,15 +160,18 @@ UnslopAI/
         │   ├── browser_helper.mjs        # Dynamic Playwright resolver, Chrome fallback & block detector
         │   ├── doctor.mjs                # Runtime, Playwright, browser launch & manifest preflight
         │   ├── detect_stack.mjs          # Read-only framework, router, Tailwind/shadcn & CSS token detector
+        │   ├── extract_reference.mjs     # Measured surface ratios, weights, tracking, radii & alignment tokens
         │   ├── inspect_site.mjs          # 4-layer forensic dissolver + interview-ready reconDigest
         │   ├── rea_inspect.mjs           # Optional framework-agnostic REA bundle & source-map extractor
-        │   ├── audit_ui.mjs              # Performance, semantic, kinetic, raw-canvas, WCAG AA & multi-route auditor
-        │   └── verify_harness.mjs        # 10-suite automated Playwright regression harness
+        │   ├── audit_ui.mjs              # Perf, semantic, kinetic, studio-craft & tiled Pass-3 critic auditor
+        │   └── verify_harness.mjs        # Automated Playwright regression harness
         ├── references/
         │   ├── product-discovery-interview.md
         │   ├── product-brief-template.md
         │   ├── execution-modes-and-prompts.md
         │   ├── parallel-orchestration.md
+        │   ├── type-pairings.md
+        │   ├── craft-primitives.md
         │   ├── framework-adapters.md
         │   ├── inspiration-translation-matrix.md
         │   ├── interactive-component-patterns.md

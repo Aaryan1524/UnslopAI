@@ -1,6 +1,6 @@
 {
   "name": "unslop-ai",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "private": true,
   "description": "Portable Agent Skill suite for forensic UI deconstruction, WebGL and CSS scroll choreography translation, anti-slop refactoring, and closed-loop Playwright kinetic QA.",
   "license": "MIT",
@@ -33,6 +33,7 @@
   "scripts": {
     "doctor": "node skills/unslop/scripts/doctor.mjs",
     "detect-stack": "node skills/unslop/scripts/detect_stack.mjs",
+    "extract-ref": "node skills/unslop/scripts/extract_reference.mjs",
     "inspect": "node skills/unslop/scripts/inspect_site.mjs",
     "rea-inspect": "node skills/unslop/scripts/rea_inspect.mjs",
     "audit": "node skills/unslop/scripts/audit_ui.mjs",

@@ -1,6 +1,6 @@
 # UnslopAI — Architecture & Release Roadmap (`plan.md`)
 
-> Living engineering roadmap for the **`unslop`** portable Agent Skill suite (`v1.2.0` current release and upcoming milestones).
+> Living engineering roadmap for the **`unslop`** portable Agent Skill suite (`v1.3.0` current release and upcoming milestones).
 
 ---
 
@@ -15,20 +15,21 @@ Build a single portable, standards-compliant Agent Skill (`skills/unslop/SKILL.m
 
 ---
 
-## 2. `v1.2.0` Adaptive Pipeline Architecture
+## 2. `v1.3.0` Adaptive Pipeline Architecture
 
 ```text
 User Request + Target Workspace + Optional Inspiration URL(s) / Screenshots
-  └─▶ Phase 0: Silent Recon (doctor.mjs + detect_stack.mjs + inspect_site.mjs reconDigest)
-               → Request-Specific Adaptive Q&A (2–3 rounds; AskUserQuestion or numbered chat)
-               → Lock `.unslop/brief.md` + User Approval Gate
+  └─▶ Phase 0: Silent Recon (doctor.mjs + detect_stack.mjs + inspect_site.mjs + extract_reference.mjs)
+               → Request-Specific Adaptive Q&A (grounded in reference-tokens.json & reconDigest)
+               → Lock `.unslop/brief.md` (+ Section Rhythm & Geometry Contract) + User Approval Gate
         │
         ▼
       Execution Router (`fast` | `standard` | `deep` | `extract-component`)
-        ├─ Phase 1: Deep Forensic Review (report.json, shaders.json, css-motion.json, crops, optional REA / baseline audit)
-        ├─ Phase 2: Inspiration Translation Matrix + `.unslop/DESIGN.md` + `.unslop/COMPONENTS.md`
-        ├─ Phase 3: Wave 1 Foundation → Wave 2 Parallel Disjoint Workers (or sequential fallback)
-        └─ Phase 4: Closed-Loop QA (`audit_ui.mjs --routes`) + Fresh-Context Reviewer + Pass-2 Polish
+        ├─ Phase 1: Deep Forensic Review (reference-tokens.json, report.json, shaders.json, css-motion.json, crops)
+        ├─ Phase 2: Translation Matrix + `.unslop/DESIGN.md` (type-pairings.md + craft-primitives.md) + `COMPONENTS.md`
+        ├─ Phase 3: Wave 1 Foundation -> Wave 2 Parallel Disjoint Workers (pure nav <=5+1, anti-void, nowrap telemetry)
+        └─ Phase 4: Closed-Loop QA (`audit_ui.mjs --routes` + studioCraft checks)
+                 -> Pass-3 Visual Critic (`critic-desktop-*.png`, `critic-mobile-*.png`, >= 8/10 rubric) -> Polish Loop
 ```
 
 ---
@@ -59,12 +60,17 @@ User Request + Target Workspace + Optional Inspiration URL(s) / Screenshots
 - **QA Auditor Upgrades (`audit_ui.mjs`):** Added `PerformanceObserver` CLS tracking, oversized image byte warnings (`> 500 KB`), semantic link/anchor/heading hygiene, active Motion-Off canvas freeze testing, alternate-theme WCAG AA contrast verification, active interactive overlay `Escape` dismissal verification, and multi-route batch auditing (`--routes` + shared chrome consistency).
 - **Playbook & Validator Hardening:** Integrated Phase 0 – Phase 5 completion gates into `SKILL.md`, synchronized `1.1.0` across all manifests and `package-lock.json`, and enforced complete reference-link coverage in `scripts/validate-skill.mjs`.
 
-### `v1.2.0` — Inspect-First Adaptive Discovery & Parallel Orchestration (Current)
+### `v1.2.0` — Inspect-First Adaptive Discovery & Parallel Orchestration (Shipped)
 - **Inspect-First Phase 0 & `.unslop/brief.md` Spec Lock:** Runs silent recon (`doctor.mjs`, `detect_stack.mjs`, `inspect_site.mjs` `reconDigest`) before asking 2–3 request-specific, reference-grounded Q&A rounds (`AskUserQuestion` or numbered choices + *"Use best defaults"*), locking `.unslop/brief.md` with user approval prior to writing code.
 - **Execution Presets & Starter Prompts (`execution-modes-and-prompts.md`):** Unified Option A routing across `fast`, `standard`, `deep`, and `extract-component` presets with copy-paste prompt recipes.
 - **Two-Wave Parallel Orchestration & Independent Reviewer (`parallel-orchestration.md`):** Disjoint file-ownership parallelization (Wave 1 foundation → Wave 2 parallel asset/component/route workers → Wave 3 integration + fresh-context read-only reviewer) with clean sequential fallback on single-agent hosts.
 
-### Post-`v1.2.0` Roadmap
+### `v1.3.0` — Studio Craft Engine, Reference Token Extraction & Pass-3 Visual Critic (Current)
+- **Measured DOM/CSS Reference Extraction (`extract_reference.mjs`):** Measures exact pixel-area light/dark surface ratios, actual `h1`–`code` weights & tracking (`400`/`500` vs generic `700`), modal corner radii per role, and section alignment sequences into `reference-tokens.json`.
+- **Optical Typography Registry & Visual Craft Primitives (`type-pairings.md`, `craft-primitives.md`):** Hard-bans default AI sans fonts unless reference-proven; encodes editorial serif & neo-grotesk pairings, `2%` inline SVG fractal-noise grain overlays, warm neutral / warm-charcoal surface discipline (`#151414`), `1px` edge-to-edge hairline grids, and product-native micro-UI artifacts.
+- **Deterministic Studio-Craft QA & Pass-3 Multimodal Critic (`audit_ui.mjs`):** Adds border-radius drift, consecutive centered-section monotony, `space-between` tall-card empty-void detection, header utility clutter, monospace bar wrapping, and banned default-font checks plus `critic-desktop-*.png` / `critic-mobile-*.png` tiles and `visual-critic-checklist.json`.
+
+### Post-`v1.3.0` Roadmap
 - **Multi-Page View Transitions:** Cross-document `@view-transition` choreography patterns and shared-element transition verification.
 - **Visual Regression Diffing:** Optional pixel-diff baseline snapshots inside `audit_ui.mjs` for iterative design-system refactors.
 - **Public Examples & Showcase:** Curated, runnable reference projects across frameworks (Next.js App Router, Vite + React, Astro, Vanilla ESM).

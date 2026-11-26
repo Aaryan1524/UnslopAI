@@ -13,8 +13,8 @@ Gather ground truth automatically so the user never has to repeat facts already 
    - Run `node <skill-dir>/scripts/detect_stack.mjs <targetDir> .unslop/stack-report.json`.
    - Read existing product truth (`README.md`, routes, `src/data/*`, pricing/specs, `public/` assets) to build a factual **Content Inventory**.
 3. **Inspiration Reference Scan (whenever an inspiration URL is provided):**
-   - Run `node <skill-dir>/scripts/inspect_site.mjs <url> .unslop/inspect`.
-   - Read `report.json`'s `reconDigest` (`topPaletteHexes`, `primaryFonts`, `sectionArchetypes`, `detectedInteractiveTriggers`, `hasWebGL`, `scrollTimelinesCount`, `mobileCollapsedCount`, `mediaCount`, `motionProfile`) and visually skim `desktop-top.png` / `mobile-top.png` / key `components/*.png`.
+   - Run `node <skill-dir>/scripts/inspect_site.mjs <url> .unslop/inspect` and `node <skill-dir>/scripts/extract_reference.mjs <url> .unslop/inspect/reference-tokens.json`.
+   - Read `report.json`'s `reconDigest` and `reference-tokens.json` (`surfaceRatio` light/dark %, measured `typography` heading weights/tracking, `geometryLock` modal card/button/input/media radii, `alignmentAudit`, `sectionArchetypes`, `detectedInteractiveTriggers`, `hasWebGL`) and visually skim `desktop-top.png` / `mobile-top.png` / key `components/*.png`.
    - *(If `blocked: true`, stop automation immediately per [`capabilities-and-limitations.md`](capabilities-and-limitations.md) and ask for screenshots instead.)*
 
 ---

@@ -5,6 +5,23 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.3.0] - 2026-11-26
+
+### Added
+- **Deterministic Reference Token Extractor (`skills/unslop/scripts/extract_reference.mjs` / `npm run extract-ref`):**
+  - Extracts `reference-tokens.json` from any reference URL: pixel-area `surfaceRatio` (light/dark polarity, exact accents, hairlines), measured `typography` (`fontWeight`, `lineHeightRatio`, `letterSpacingEm` across `h1`–`code`), modal `geometryLock` (`cardRadius`, `buttonRadius`, `inputRadius`, `mediaRadius`, `flatHairlineSystem`), `alignmentAudit` (`centeredPct`, `leftAlignedPct`, `maxConsecutiveCentered`), and a ready-to-lock `:root` `cssTokensSnippet`.
+- **Curated Typography & Visual Craft References (`skills/unslop/references/`):**
+  - `type-pairings.md`: hard-bans generic AI sans defaults (`Inter`, `Plus Jakarta Sans`, `Space Grotesk`, `Poppins`, `Roboto`) unless reference-proven; locks optical CSS rules (`font-optical-sizing: auto`, negative display tracking, medium `400`/`500` heading weights, `tabular-nums`), editorial serif (`Instrument Serif`, `Newsreader`) and neo-grotesk (`Figtree`, `Switzer`) pairings, and proprietary font mappings.
+  - `craft-primitives.md`: reusable `2%` inline SVG `<feTurbulence>` noise grain overlay, light-first neutral + `#151414` warm-charcoal dark surface tokens (banning cold `#0B0D14` navy-slate defaults), `1px` edge-to-edge hairline architectural grids, and product-native micro-UI artifacts (`white-space: nowrap` terminal bars, OS notifications, SVG/Canvas usage-decay charts).
+- **Automated Studio-Craft Regression Checks & Pass-3 Visual Critic Captures (`skills/unslop/scripts/audit_ui.mjs`):**
+  - Added deterministic `studioCraft` checks catching border-radius drift (`radiusContract`), `>= 3` consecutive centered sections (`sectionRhythm`), tall `space-between` empty-void cards (`stretchedVoidCards`), utility toggles/excess items in primary header navs (`navClutter`), unintended wrapped monospace status lines (`wrappedMonoBars`), and banned default fonts (`defaultFontFlags`).
+  - Automatically captures viewport-height tiled `critic-desktop-*.png` (`1440×900`) and `critic-mobile-*.png` (`390×844`) plus `visual-critic-checklist.json` mapped to the 6-Axis 10-Point Pass-3 Visual Art-Director Rubric.
+
+### Changed
+- Fixed `reconDigest.topPaletteHexes` and `reconDigest.primaryFonts` extraction in `skills/unslop/scripts/inspect_site.mjs`.
+- Updated `skills/unslop/SKILL.md`, `product-brief-template.md`, `anti-slop-checklist.md`, `curated-typography.md`, and `parallel-orchestration.md` to enforce Section Rhythm & Geometry Contracts, 3-radius budgets, Navbar Purity, Anti-Void cards, and Pass-3 Visual Critic polish loops (`>= 8/10` per axis).
+- Updated `skills/unslop/scripts/doctor.mjs` (`21` core skill files), `scripts/validate-skill.mjs`, `README.md`, `plan.md`, and synchronized version `1.3.0` across all manifests.
+
 ## [1.2.0] - 2026-11-26
 
 ### Added
