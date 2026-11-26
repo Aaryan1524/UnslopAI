@@ -8,6 +8,7 @@ import { inspectSite } from './inspect_site.mjs';
 import { auditUI, auditMultiRoute } from './audit_ui.mjs';
 import { detectStack } from './detect_stack.mjs';
 import { runDoctor } from './doctor.mjs';
+import { extractReference } from './extract_reference.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -69,6 +70,77 @@ const V11_DEFECTS_HTML = `<!doctype html>
 </body>
 </html>`;
 
+const STUDIO_CRAFT_DEFECTS_HTML = `<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Synthetic v1.3 studio craft defect regression fixture">
+  <title>Studio Craft Defects Regression Route</title>
+  <style>
+    *{box-sizing:border-box}
+    body{margin:0;background:#ffffff;color:#151414;font-family:'Inter',sans-serif;font-size:16px}
+    header{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:8px;padding:12px 16px;border-bottom:1px solid #ddd}
+    header nav{display:flex;flex-wrap:wrap;gap:10px}
+    h1,h2{font-family:'Space Grotesk',sans-serif;font-weight:700;margin:0 0 12px}
+    h1{font-size:44px;line-height:1.1}
+    h2{font-size:30px;line-height:1.15}
+    .centered-sec{text-align:center;padding:32px 16px;max-width:1080px;margin:0 auto}
+    .card-row{display:flex;flex-wrap:wrap;justify-content:center;gap:14px;margin-top:16px}
+    .c-sharp{width:100%;max-width:240px;min-height:100px;padding:16px;border:1px solid #ccc;border-radius:0px;background:#faf9f6}
+    .c-mid{width:100%;max-width:240px;min-height:100px;padding:16px;border:1px solid #ccc;border-radius:16px;background:#faf9f6}
+    .c-big{width:100%;max-width:240px;min-height:100px;padding:16px;border:1px solid #ccc;border-radius:24px;background:#faf9f6}
+    .void-card{width:100%;max-width:300px;height:420px;display:flex;flex-direction:column;justify-content:space-between;border:1px solid #ccc;border-radius:16px;padding:18px;text-align:left;background:#faf9f6}
+    .btn-s{padding:8px 14px;border:1px solid #151414;background:#151414;color:#fff;border-radius:4px}
+    .btn-m{padding:8px 14px;border:1px solid #151414;background:#fff;color:#151414;border-radius:10px}
+    .btn-p{padding:8px 14px;border:1px solid #151414;background:#ff5e1f;color:#151414;border-radius:9999px}
+    .status-bar{width:185px;margin:12px auto 0;font-family:monospace;font-size:14px;line-height:1.35;background:#151414;color:#f0e3de;padding:6px 10px;border-radius:4px}
+  </style>
+</head>
+<body>
+  <header>
+    <a href="/">Brand</a>
+    <nav aria-label="Primary">
+      <a href="#s1">Overview</a><a href="#s2">Docs</a><a href="#s3">Pricing</a><a href="#s4">Guides</a><a href="#s1">Status</a><a href="#s2">Blog</a><a href="#s3">Support</a>
+    </nav>
+    <div>
+      <button type="button" id="theme-toggle">Dark</button>
+      <button type="button" id="motion-btn">Motion: Full</button>
+    </div>
+  </header>
+  <main>
+    <section id="s1" class="centered-sec">
+      <h1>Centered Pyramid Hero</h1>
+      <p>Generic typography and centered pyramid stack.</p>
+      <div class="card-row">
+        <button type="button" class="btn-s">Sharp CTA</button>
+        <button type="button" class="btn-m">Medium CTA</button>
+        <button type="button" class="btn-p">Pill CTA</button>
+      </div>
+      <div class="status-bar">z 5h ━━━━━━──── 58% | 7d ━━━─────── 31% reset 4d 3h</div>
+    </section>
+    <section id="s2" class="centered-sec">
+      <h2>Centered Section Two</h2>
+      <div class="card-row">
+        <div class="c-sharp">0px card</div>
+        <div class="c-mid">16px card</div>
+        <div class="c-big">24px card</div>
+      </div>
+    </section>
+    <section id="s3" class="centered-sec">
+      <h2>Centered Section Three</h2>
+      <div class="card-row">
+        <div class="void-card"><div><h3>Top Title</h3></div><div><p>Bottom Note</p></div></div>
+      </div>
+    </section>
+    <section id="s4" class="centered-sec">
+      <h2>Centered Section Four</h2>
+      <p>Consecutive centered band four.</p>
+    </section>
+  </main>
+</body>
+</html>`;
+
 function createOversizedBmpBuffer(width = 450, height = 400) {
   const rowSize = Math.ceil((width * 3) / 4) * 4;
   const pixelArraySize = rowSize * height;
@@ -101,6 +173,11 @@ function startStaticServer(rootDir) {
       if (reqPath === '__v11-defects.html') {
         res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
         res.end(V11_DEFECTS_HTML);
+        return;
+      }
+      if (reqPath === '__studio-craft-defects.html') {
+        res.writeHead(200, { 'Content-Type': 'text/html; charset=utf-8' });
+        res.end(STUDIO_CRAFT_DEFECTS_HTML);
         return;
       }
       if (reqPath === '__oversized-520kb.bmp') {
@@ -198,6 +275,14 @@ try {
     `Clean fixture failed unexpectedly: ${JSON.stringify(cleanAudit.summary, null, 2)}`,
   );
   assert.ok(cleanAudit.screenshots.sections.length >= 3, 'Expected cropped audit section PNGs');
+  assert.equal(cleanAudit.studioCraft?.warnings?.length, 0, `Clean reference fixture must produce 0 studioCraft warnings: ${JSON.stringify(cleanAudit.studioCraft?.warnings)}`);
+  assert.ok(cleanAudit.screenshots.desktopTiles?.length >= 1, 'Expected desktopTiles on clean audit');
+  assert.ok(cleanAudit.screenshots.mobileTiles?.length >= 1, 'Expected mobileTiles on clean audit');
+  const cleanChecklist = JSON.parse(await fs.readFile(path.join(outRoot, 'audit-clean', 'visual-critic-checklist.json'), 'utf8'));
+  assert.equal(cleanChecklist.meta?.rubricScale, '7-axis-10-point', 'Expected 7-axis-10-point rubricScale');
+  for (const rubricKey of ['typographyCraft', 'deadSpaceAudit', 'microUiWrapping', 'rhythmAndMonotony', 'referenceFidelity', 'surfaceCohesion', 'sideBySideVisualLineage', 'copyEconomy']) {
+    assert.ok(cleanChecklist[rubricKey], `Expected ${rubricKey} inside visual-critic-checklist.json`);
+  }
 
   console.log('4) Verifying v3.5 GPU shader hook, deduplication, inert filtering & kinetic audit...');
   const kineticInspect = await inspectSite(
@@ -309,9 +394,9 @@ try {
   assert.equal(doctorReport.checks.playwright.ok, true, 'Playwright resolution must pass');
   assert.equal(doctorReport.checks.browserLaunch.skipped, true, 'Browser launch check should be skipped');
   assert.equal(doctorReport.checks.skillFiles.ok, true, `Missing skill files: ${JSON.stringify(doctorReport.checks.skillFiles.missing)}`);
-  assert.equal(doctorReport.checks.skillFiles.checkedCount, 18, 'Expected 18 verified core skill files');
+  assert.equal(doctorReport.checks.skillFiles.checkedCount, 21, 'Expected 21 verified core skill files');
 
-  console.log('8) Verifying inspectSite v1.1/v1.2 telemetry & reconDigest on sample-v11-interactive.html...');
+  console.log('8) Verifying inspectSite v1.1/v1.2/v1.3 telemetry & reconDigest on sample-v11-interactive.html...');
   const v11InspectOut = path.join(outRoot, 'inspect-v11');
   const v11Inspect = await inspectSite(
     `${baseUrl}/sample-v11-interactive.html`,
@@ -319,6 +404,14 @@ try {
   );
   assert.equal(v11Inspect.meta.blocked, false, 'v1.1 fixture must not be blocked');
   assert.ok(v11Inspect.reconDigest && typeof v11Inspect.reconDigest === 'object', 'Expected interview-ready reconDigest object');
+  assert.ok(
+    Array.isArray(v11Inspect.reconDigest.topPaletteHexes) && v11Inspect.reconDigest.topPaletteHexes.length >= 1,
+    `Expected non-empty reconDigest.topPaletteHexes: ${JSON.stringify(v11Inspect.reconDigest)}`,
+  );
+  assert.ok(
+    Array.isArray(v11Inspect.reconDigest.primaryFonts) && v11Inspect.reconDigest.primaryFonts.length >= 1,
+    `Expected non-empty reconDigest.primaryFonts: ${JSON.stringify(v11Inspect.reconDigest)}`,
+  );
   assert.ok(v11Inspect.reconDigest.sectionCount >= 1, 'Expected reconDigest.sectionCount >= 1');
   assert.ok(Array.isArray(v11Inspect.reconDigest.sectionArchetypes) && v11Inspect.reconDigest.sectionArchetypes.length >= 1, 'Expected reconDigest.sectionArchetypes');
   assert.ok(['minimal', 'balanced', 'kinetic-heavy'].includes(v11Inspect.reconDigest.motionProfile), `Unexpected reconDigest.motionProfile: ${v11Inspect.reconDigest.motionProfile}`);
@@ -386,6 +479,9 @@ try {
   );
   assert.equal(v11CleanAudit.layout.chromeSignature?.header?.present, true, 'Expected header chromeSignature');
   assert.equal(v11CleanAudit.layout.chromeSignature?.footer?.present, true, 'Expected footer chromeSignature');
+  assert.equal(v11CleanAudit.studioCraft?.navClutter?.hasThemeOrMotionInHeader, true, 'v1.1 interactive fixture places toggles in header and triggers non-blocking navClutter check');
+  assert.ok(v11CleanAudit.screenshots.desktopTiles?.length >= 1, 'Expected desktopTiles on v1.1 clean audit');
+  assert.ok(v11CleanAudit.screenshots.mobileTiles?.length >= 1, 'Expected mobileTiles on v1.1 clean audit');
 
   const v11DefectsAudit = await auditUI(
     `${baseUrl}/__v11-defects.html`,
@@ -433,6 +529,49 @@ try {
   assert.equal(multiMismatch.sharedChromeConsistency.headerConsistent, false, 'Expected headerConsistent: false');
   assert.ok(multiMismatch.sharedChromeConsistency.inconsistencies.length >= 1, 'Expected inconsistency details');
 
+  console.log('11) Verifying v1.3/v1.4 extractReference (visualMotifs + copyDensity) + studioCraft defects & 7-axis Critic...');
+  const refOutDir = path.join(outRoot, 'extract-ref-v11');
+  const refTokens = await extractReference(`${baseUrl}/sample-v11-interactive.html`, refOutDir);
+  assert.equal(refTokens.meta.blocked, false, 'Reference extraction on local fixture must not be blocked');
+  assert.ok(['light', 'dark'].includes(refTokens.surfaceRatio?.dominantPolarity), 'Expected dominantPolarity telemetry');
+  assert.ok(refTokens.typography?.h1?.fontSizePx >= 24, 'Expected measured H1 size');
+  assert.ok(refTokens.geometryLock?.cardRadius, 'Expected measured cardRadius lock');
+  assert.ok(refTokens.alignmentAudit?.sectionsAnalyzed >= 1, 'Expected alignmentAudit sections');
+  assert.ok(refTokens.cssTokensSnippet?.includes('--ref-'), 'Expected generated --ref- CSS tokens snippet');
+  assert.ok(refTokens.visualMotifs && typeof refTokens.visualMotifs.hasDotOrGridBackground === 'boolean', 'Expected v1.4 visualMotifs telemetry');
+  assert.ok(['centered', 'left-aligned', 'split'].includes(refTokens.visualMotifs.heroAlignment), 'Expected visualMotifs.heroAlignment');
+  assert.ok(refTokens.copyDensity && ['minimal', 'balanced', 'editorial'].includes(refTokens.copyDensity.copyDensityTier), 'Expected v1.4 copyDensity telemetry');
+  await fs.access(path.join(refOutDir, 'reference-tokens.json'));
+
+  const scDefectsOut = path.join(outRoot, 'audit-studio-defects');
+  const scDefects = await auditUI(`${baseUrl}/__studio-craft-defects.html`, scDefectsOut);
+  assert.equal(scDefects.summary.passed, true, `Studio-craft warnings must remain non-blocking: ${JSON.stringify(scDefects.summary)}`);
+  assert.equal(scDefects.studioCraft.radiusContract.radiusDriftDetected, true, 'Must detect 3-radius drift across cards and controls');
+  assert.equal(scDefects.studioCraft.sectionRhythm.monotonyDetected, true, 'Must detect >= 3 consecutive centered sections');
+  assert.ok(scDefects.studioCraft.sectionRhythm.maxConsecutiveCentered >= 3, 'Expected maxConsecutiveCentered >= 3');
+  assert.ok(scDefects.studioCraft.stretchedVoidCards.length >= 1, 'Must detect tall flex space-between card void');
+  assert.equal(scDefects.studioCraft.navClutter.hasThemeOrMotionInHeader, true, 'Must detect header theme/motion toggle clutter');
+  assert.ok(scDefects.studioCraft.navClutter.navLinkCount > 6, 'Must detect > 6 header nav links');
+  assert.ok(scDefects.studioCraft.wrappedMonoBars.length >= 1, 'Must detect wrapped mono status bar');
+  assert.ok(scDefects.studioCraft.defaultFontFlags.includes('Space Grotesk'), 'Must flag banned display font Space Grotesk');
+  assert.ok(scDefects.studioCraft.defaultFontFlags.includes('Inter'), 'Must flag banned body font Inter');
+  assert.ok(scDefects.screenshots.desktopTiles.length >= 1 && scDefects.screenshots.mobileTiles.length >= 1, 'Must capture desktopTiles and mobileTiles');
+  await fs.access(path.join(scDefectsOut, 'visual-critic-checklist.json'));
+  const firstTileBuf = await fs.readFile(path.join(scDefectsOut, scDefects.screenshots.desktopTiles[0]));
+  assert.equal(firstTileBuf.subarray(0, 8).toString('hex'), '89504e470d0a1a0a', 'critic-desktop-1.png must be a valid PNG');
+
+  const scAllowFonts = await auditUI(
+    `${baseUrl}/__studio-craft-defects.html`,
+    path.join(outRoot, 'audit-studio-allow-fonts'),
+    { allowGenericFonts: true },
+  );
+  assert.equal(
+    scAllowFonts.studioCraft.warnings.some((w) => w.includes('generic AI font')),
+    false,
+    'allowGenericFonts: true must suppress the generic AI font warning',
+  );
+  assert.ok(scAllowFonts.studioCraft.defaultFontFlags.includes('Inter'), 'defaultFontFlags telemetry stays populated');
+
   console.log('ALL VERIFICATION CHECKS PASSED:', {
     cdpAvailable: inspectReport.meta.cdpSnapshot.available,
     inspectSections: inspectReport.sections.length,
@@ -461,6 +600,9 @@ try {
     v11DefectsAltThemeFailures: v11DefectsAudit.accessibility.alternateThemeContrast.contrastFailuresCount,
     multiRouteConsistent: multiOk.sharedChromeConsistency.consistent,
     multiRouteMismatchCaught: !multiMismatch.sharedChromeConsistency.consistent,
+    v13RefDominantPolarity: refTokens.surfaceRatio.dominantPolarity,
+    v13StudioCraftWarningsCaught: scDefects.studioCraft.warnings.length,
+    v13CriticDesktopTiles: scDefects.screenshots.desktopTiles.length,
   });
 } finally {
   server.close();

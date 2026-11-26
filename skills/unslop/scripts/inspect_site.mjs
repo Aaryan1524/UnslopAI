@@ -29,6 +29,86 @@ const KNOWN_OPEN_SOURCE_FONTS = new Set([
 
 const GENERIC_TW_KEYFRAMES = new Set(['spin', 'ping', 'pulse', 'bounce']);
 
+function normalizeCssColorToHex(rawColor) {
+  if (!rawColor || typeof rawColor !== 'string') return null;
+  const s = rawColor.trim().toLowerCase();
+  if (!s || s === 'transparent' || s === 'none' || s === 'inherit' || s === 'initial' || s === 'currentcolor') {
+    return null;
+  }
+
+  if (s.startsWith('#')) {
+    const hex = s.slice(1);
+    if (/^[0-9a-f]{3}$/.test(hex)) {
+      return `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`;
+    }
+    if (/^[0-9a-f]{4}$/.test(hex)) {
+      const alpha = parseInt(hex[3] + hex[3], 16) / 255;
+      if (alpha < 0.05) return null;
+      return `#${hex[0]}${hex[0]}${hex[1]}${hex[1]}${hex[2]}${hex[2]}`;
+    }
+    if (/^[0-9a-f]{6}$/.test(hex)) {
+      return `#${hex}`;
+    }
+    if (/^[0-9a-f]{8}$/.test(hex)) {
+      const alpha = parseInt(hex.slice(6, 8), 16) / 255;
+      if (alpha < 0.05) return null;
+      return `#${hex.slice(0, 6)}`;
+    }
+    return null;
+  }
+
+  const rgbMatch = s.match(/^rgba?\(\s*([^)]+)\s*\)$/);
+  if (rgbMatch) {
+    const parts = rgbMatch[1].split(/[\s,/]+/).filter(Boolean);
+    if (parts.length < 3) return null;
+    if (parts.length >= 4) {
+      const rawAlpha = parts[3];
+      const alpha = rawAlpha.endsWith('%') ? parseFloat(rawAlpha) / 100 : parseFloat(rawAlpha);
+      if (!Number.isFinite(alpha) || alpha < 0.05) return null;
+    }
+    const channels = parts.slice(0, 3).map((token) => {
+      const val = token.endsWith('%') ? (parseFloat(token) / 100) * 255 : parseFloat(token);
+      if (!Number.isFinite(val)) return NaN;
+      return Math.max(0, Math.min(255, Math.round(val)));
+    });
+    if (channels.some((c) => Number.isNaN(c))) return null;
+    return `#${channels.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+  }
+
+  const srgbMatch = s.match(/^color\(\s*srgb\s+([^)]+)\s*\)$/);
+  if (srgbMatch) {
+    const parts = srgbMatch[1].split(/[\s/]+/).filter(Boolean);
+    if (parts.length < 3) return null;
+    if (parts.length >= 4) {
+      const rawAlpha = parts[3];
+      const alpha = rawAlpha.endsWith('%') ? parseFloat(rawAlpha) / 100 : parseFloat(rawAlpha);
+      if (!Number.isFinite(alpha) || alpha < 0.05) return null;
+    }
+    const channels = parts.slice(0, 3).map((token) => {
+      const val = token.endsWith('%') ? (parseFloat(token) / 100) * 255 : parseFloat(token) * 255;
+      if (!Number.isFinite(val)) return NaN;
+      return Math.max(0, Math.min(255, Math.round(val)));
+    });
+    if (channels.some((c) => Number.isNaN(c))) return null;
+    return `#${channels.map((c) => c.toString(16).padStart(2, '0')).join('')}`;
+  }
+
+  return null;
+}
+
+function isNearDuplicateHex(hexA, hexB, maxDistance = 5) {
+  if (hexA === hexB) return true;
+  if (!/^#[0-9a-f]{6}$/i.test(hexA) || !/^#[0-9a-f]{6}$/i.test(hexB)) return false;
+  const r1 = parseInt(hexA.slice(1, 3), 16);
+  const g1 = parseInt(hexA.slice(3, 5), 16);
+  const b1 = parseInt(hexA.slice(5, 7), 16);
+  const r2 = parseInt(hexB.slice(1, 3), 16);
+  const g2 = parseInt(hexB.slice(3, 5), 16);
+  const b2 = parseInt(hexB.slice(5, 7), 16);
+  const distSq = (r1 - r2) ** 2 + (g1 - g2) ** 2 + (b1 - b2) ** 2;
+  return distSq <= maxDistance * maxDistance;
+}
+
 function stripCssComments(css) {
   return String(css || '').replace(/\/\*[\s\S]*?\*\//g, '');
 }
@@ -2237,17 +2317,28 @@ export async function inspectSite(url, outputDir) {
     }
 
     // Compact interview-ready digest so Phase 0 can craft request-specific questions without parsing full dumps
-    const topPaletteHexes = [
-      ...(domAnalysis.colors?.topBackgrounds || []).slice(0, 4).map((c) => c.hex || c.color),
-      ...(domAnalysis.colors?.topAccents || []).slice(0, 3).map((c) => c.hex || c.color),
-    ].filter((v, i, arr) => Boolean(v) && arr.indexOf(v) === i);
+    const dedupeHexPalette = (items, limit, existing = []) => {
+      const out = [];
+      for (const item of items || []) {
+        const hex = normalizeCssColorToHex(item?.value || item?.hex || item?.color);
+        if (!hex) continue;
+        if (existing.some((h) => isNearDuplicateHex(h, hex)) || out.some((h) => isNearDuplicateHex(h, hex))) continue;
+        out.push(hex);
+        if (out.length >= limit) break;
+      }
+      return out;
+    };
+    const bgHexes = dedupeHexPalette(domAnalysis.colors?.backgrounds, 4);
+    const accentHexes = dedupeHexPalette(domAnalysis.colors?.accents, 3, bgHexes);
+    const topPaletteHexes = [...bgHexes, ...accentHexes];
 
     const primaryFonts = [
-      domAnalysis.typography?.dominantDisplay?.fontFamily,
-      domAnalysis.typography?.dominantBody?.fontFamily,
+      domAnalysis.typography?.scale?.h1?.fontFamily,
+      domAnalysis.typography?.scale?.body?.fontFamily,
+      domAnalysis.typography?.scale?.code?.fontFamily,
     ]
       .filter(Boolean)
-      .map((f) => String(f).split(',')[0].replace(/^["']|["']$/g, '').trim())
+      .map((f) => String(f).split(',')[0].trim().replace(/^["']+|["']+$/g, '').trim())
       .filter((v, i, arr) => Boolean(v) && arr.indexOf(v) === i);
 
     const sectionArchetypes = (domAnalysis.sections || [])

@@ -770,7 +770,938 @@ async function probeInteractiveOverlays(page) {
   return results;
 }
 
-export async function auditUI(url, outputDir) {
+async function runStudioCraftAudit(page, sectionMeta, { allowGenericFonts = false } = {}) {
+  const telemetry = await page.evaluate((sections) => {
+    const vw = window.innerWidth || 1440;
+
+    const isHiddenOrInert = (el) => {
+      let cur = el;
+      while (cur && cur.nodeType === Node.ELEMENT_NODE) {
+        if (cur.hasAttribute('inert') || cur.getAttribute('aria-hidden') === 'true') return true;
+        const s = getComputedStyle(cur);
+        if (s.display === 'none' || s.visibility === 'hidden' || parseFloat(s.opacity) < 0.05) return true;
+        cur = cur.parentElement;
+      }
+      return false;
+    };
+
+    const isLayoutVisible = (el) => {
+      let cur = el;
+      while (cur && cur.nodeType === Node.ELEMENT_NODE) {
+        if (cur.hasAttribute('inert') || cur.getAttribute('aria-hidden') === 'true') return false;
+        const s = getComputedStyle(cur);
+        if (s.display === 'none' || s.visibility === 'hidden') return false;
+        cur = cur.parentElement;
+      }
+      return true;
+    };
+
+    const colorCanvas = document.createElement('canvas');
+    colorCanvas.width = 1;
+    colorCanvas.height = 1;
+    const colorCtx = colorCanvas.getContext('2d', { willReadFrequently: true });
+
+    const parseRgba = (str) => {
+      if (!str || str === 'transparent') return [0, 0, 0, 0];
+      if (/\s*\/\s*0(?:\.0+)?\s*\)/.test(str)) return [0, 0, 0, 0];
+      const m = str.match(/rgba?\(([^)]+)\)/);
+      if (m && !m[1].includes('%')) {
+        const p = m[1].split(/[\s,/]+/).filter(Boolean).map((v) => parseFloat(v));
+        return [p[0], p[1], p[2], p.length >= 4 ? p[3] : 1];
+      }
+      if (colorCtx) {
+        colorCtx.clearRect(0, 0, 1, 1);
+        colorCtx.fillStyle = '#000000';
+        colorCtx.fillStyle = str;
+        colorCtx.fillRect(0, 0, 1, 1);
+        const d = colorCtx.getImageData(0, 0, 1, 1).data;
+        return [d[0], d[1], d[2], Number((d[3] / 255).toFixed(3))];
+      }
+      return null;
+    };
+
+    const compositeOver = (fg, bg) => {
+      const a = fg[3];
+      return [
+        fg[0] * a + bg[0] * (1 - a),
+        fg[1] * a + bg[1] * (1 - a),
+        fg[2] * a + bg[2] * (1 - a),
+        1,
+      ];
+    };
+
+    const rgbToHex = (rgb) => {
+      const clamp = (n) => Math.max(0, Math.min(255, Math.round(n)));
+      return `#${[clamp(rgb[0]), clamp(rgb[1]), clamp(rgb[2])].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+    };
+
+    const htmlBgRaw = document.documentElement ? parseRgba(getComputedStyle(document.documentElement).backgroundColor) : null;
+    const bodyBgRaw = document.body ? parseRgba(getComputedStyle(document.body).backgroundColor) : null;
+    let bodyBgRgb = [255, 255, 255, 1];
+    if (htmlBgRaw && htmlBgRaw[3] > 0.01) bodyBgRgb = compositeOver(htmlBgRaw, bodyBgRgb);
+    if (bodyBgRaw && bodyBgRaw[3] > 0.01) bodyBgRgb = compositeOver(bodyBgRaw, bodyBgRgb);
+
+    const bodyTextRaw = document.body ? parseRgba(getComputedStyle(document.body).color) : null;
+    const bodyTextRgb = bodyTextRaw ? compositeOver(bodyTextRaw, bodyBgRgb) : [0, 0, 0, 1];
+
+    const rgbDist = (c1, c2) => Math.abs(c1[0] - c2[0]) + Math.abs(c1[1] - c2[1]) + Math.abs(c1[2] - c2[2]);
+
+    // 1. Radius Contract (3-Radius Drift Check)
+    const parseCornerPx = (val) => {
+      const n = parseFloat(val);
+      return Number.isFinite(n) ? n : 0;
+    };
+    const getMaxRadiusPx = (s) =>
+      Math.max(
+        parseCornerPx(s.borderTopLeftRadius),
+        parseCornerPx(s.borderTopRightRadius),
+        parseCornerPx(s.borderBottomRightRadius),
+        parseCornerPx(s.borderBottomLeftRadius),
+      );
+    const classifyRadiusTier = (px, height) => {
+      if (px >= 999 || (height > 0 && px >= height * 0.45 && px > 4)) return 'pill';
+      if (px <= 4) return 'sharp';
+      if (px <= 12) return 'medium';
+      return 'large';
+    };
+    const isCircleGeometry = (r, radiusPx) =>
+      Math.abs(r.width - r.height) <= 4 && radiusPx >= Math.min(r.width, r.height) * 0.48;
+
+    const CARD_SKIP_TAGS = new Set([
+      'HTML', 'BODY', 'MAIN', 'HEADER', 'FOOTER', 'NAV',
+      'IMG', 'SVG', 'VIDEO', 'CANVAS', 'PICTURE', 'IFRAME',
+      'TABLE', 'THEAD', 'TBODY', 'TR', 'TD', 'TH',
+      'BUTTON', 'INPUT', 'SELECT', 'TEXTAREA',
+    ]);
+
+    const cardSamples = [];
+    const cardCandidateEls = [];
+    const cardValueSet = new Set();
+    const cardTierSet = new Set();
+    const controlSamples = [];
+    const controlValueSet = new Set();
+    const controlTierSet = new Set();
+
+    const surfaceFreq = new Map();
+
+    const isStructuralBorderlessWrapper = (el, s, r, borderWidths, hasBoxBorder, hasShadow, radiusPx) => {
+      if (hasBoxBorder || hasShadow || radiusPx > 0) return false;
+      if (el.tagName === 'SECTION') return true;
+      // Centered vertical guide-rail wrapper with left+right borders only (no top/bottom box border)
+      const hasVerticalRailsOnly =
+        r.width >= vw * 0.65 &&
+        borderWidths[1] >= 0.5 &&
+        borderWidths[3] >= 0.5 &&
+        borderWidths[0] < 0.5 &&
+        borderWidths[2] < 0.5;
+      if (hasVerticalRailsOnly) return true;
+
+      const isGridOrFlex =
+        s.display === 'grid' ||
+        s.display === 'inline-grid' ||
+        s.display === 'flex' ||
+        s.display === 'inline-flex';
+      if (!isGridOrFlex && !el.querySelector(':scope > section, :scope > article')) return false;
+
+      const visBlockKids = Array.from(el.children).filter((child) => {
+        if (isHiddenOrInert(child)) return false;
+        const cs = getComputedStyle(child);
+        if (cs.position === 'absolute' || cs.position === 'fixed') return false;
+        const cr = child.getBoundingClientRect();
+        return cr.width >= 120 && cr.height >= 60;
+      });
+      if (visBlockKids.length < 2) return false;
+
+      let styledKidCount = 0;
+      let kidAreaSum = 0;
+      for (const kid of visBlockKids) {
+        const ks = getComputedStyle(kid);
+        const kr = kid.getBoundingClientRect();
+        kidAreaSum += kr.width * kr.height;
+        const kBg = parseRgba(ks.backgroundColor);
+        const kHasBg = Boolean(kBg && kBg[3] > 0.05);
+        const kHasShadow = Boolean(ks.boxShadow && ks.boxShadow !== 'none');
+        const kRadius = getMaxRadiusPx(ks);
+        const kBorder =
+          (parseFloat(ks.borderTopWidth) || 0) >= 0.5 ||
+          (parseFloat(ks.borderBottomWidth) || 0) >= 0.5 ||
+          (parseFloat(ks.borderLeftWidth) || 0) >= 0.5 ||
+          (parseFloat(ks.borderRightWidth) || 0) >= 0.5;
+        if (kHasBg || kHasShadow || kRadius > 0 || kBorder || kid.tagName === 'ARTICLE' || kid.tagName === 'SECTION') {
+          styledKidCount++;
+        }
+      }
+      const parentArea = Math.max(1, r.width * r.height);
+      return styledKidCount >= 2 || (isGridOrFlex && kidAreaSum / parentArea >= 0.65);
+    };
+
+    for (const el of document.querySelectorAll('body *')) {
+      if (isHiddenOrInert(el)) continue;
+      const s = getComputedStyle(el);
+      const r = el.getBoundingClientRect();
+      if (r.width <= 0 || r.height <= 0) continue;
+
+      const bgRgba = parseRgba(s.backgroundColor);
+      if (bgRgba && bgRgba[3] > 0.08 && r.width >= 120 && r.height >= 40) {
+        const comp = compositeOver(bgRgba, bodyBgRgb);
+        const hex = rgbToHex(comp);
+        surfaceFreq.set(hex, (surfaceFreq.get(hex) || 0) + Math.min(r.width * r.height, 400000));
+      }
+
+      if (CARD_SKIP_TAGS.has(el.tagName)) continue;
+      const role = (el.getAttribute('role') || '').toLowerCase();
+      if (role === 'button') continue;
+      if (el.tagName === 'A' && /\b(btn|button)\b/i.test(String(el.className || ''))) continue;
+      // Never sample tiny decorative corner registration squares or micro-elements as cards
+      if (r.width <= 16 && r.height <= 16) continue;
+      if (r.width < 160 || r.height < 80) continue;
+
+      const radiusPx = getMaxRadiusPx(s);
+      if (isCircleGeometry(r, radiusPx)) continue;
+      if (el.matches('[class*="avatar" i], [class*="dot" i], [class*="swatch" i], [class*="reg-mark" i], [class*="registration" i], [class*="crosshair" i], [class*="corner-mark" i]')) continue;
+
+      const borderColors = [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor]
+        .map(parseRgba);
+      const borderWidths = [
+        parseFloat(s.borderTopWidth) || 0,
+        parseFloat(s.borderRightWidth) || 0,
+        parseFloat(s.borderBottomWidth) || 0,
+        parseFloat(s.borderLeftWidth) || 0,
+      ];
+      const hasBoxBorder = borderWidths.every((w, idx) => w >= 0.5 && borderColors[idx] && borderColors[idx][3] > 0.05);
+      const hasShadow = Boolean(s.boxShadow && s.boxShadow !== 'none');
+      const compBg = bgRgba && bgRgba[3] > 0.05 ? compositeOver(bgRgba, bodyBgRgb) : null;
+      const hasDistinctBg = Boolean(compBg && rgbDist(compBg, bodyBgRgb) > 10);
+
+      // Ignore full-bleed horizontal page sections and structural borderless grid wrappers
+      const isFullBleedBand = (r.width >= vw * 0.94 || (el.tagName === 'SECTION' && r.width >= vw - 4)) && !hasBoxBorder && !hasShadow;
+      if (isFullBleedBand) continue;
+      if (!hasBoxBorder && !hasShadow && !hasDistinctBg) continue;
+      if (isStructuralBorderlessWrapper(el, s, r, borderWidths, hasBoxBorder, hasShadow, radiusPx)) continue;
+
+      cardCandidateEls.push(el);
+
+      const tier = classifyRadiusTier(radiusPx, r.height);
+      const normVal = tier === 'pill' ? 'pill' : `${Math.round(radiusPx)}px`;
+      cardValueSet.add(normVal);
+      cardTierSet.add(tier);
+      if (cardSamples.length < 16) {
+        cardSamples.push({
+          tag: el.tagName.toLowerCase(),
+          className: typeof el.className === 'string' ? el.className.trim().slice(0, 48) || null : null,
+          radiusPx: Math.round(radiusPx),
+          normalized: normVal,
+          tier,
+        });
+      }
+    }
+
+    for (const el of document.querySelectorAll('button, [role="button"], input, select, a[class*="btn" i], a[class*="button" i]')) {
+      if (isHiddenOrInert(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.width <= 16 && r.height <= 16) continue;
+      if (r.width < 4 || r.height < 4) continue;
+      if (el.tagName === 'INPUT') {
+        const t = (el.getAttribute('type') || 'text').toLowerCase();
+        if (t === 'checkbox' || t === 'radio' || t === 'hidden' || t === 'range' || t === 'color') continue;
+      }
+      if (el.matches('[class*="swatch" i], [data-swatch]')) continue;
+
+      const s = getComputedStyle(el);
+      const radiusPx = getMaxRadiusPx(s);
+      const textLen = (el.innerText || '').trim().length;
+      if (r.width <= 48 && isCircleGeometry(r, radiusPx) && textLen <= 2) continue;
+
+      if (el.tagName !== 'INPUT' && el.tagName !== 'SELECT') {
+        const bgRgba = parseRgba(s.backgroundColor);
+        const hasBg = Boolean(bgRgba && bgRgba[3] > 0.05);
+        const borderWidths = [
+          parseFloat(s.borderTopWidth) || 0,
+          parseFloat(s.borderRightWidth) || 0,
+          parseFloat(s.borderBottomWidth) || 0,
+          parseFloat(s.borderLeftWidth) || 0,
+        ];
+        const borderColors = [s.borderTopColor, s.borderRightColor, s.borderBottomColor, s.borderLeftColor].map(parseRgba);
+        const visibleBorderSides = borderWidths.filter((w, idx) => w >= 0.5 && borderColors[idx] && borderColors[idx][3] > 0.05).length;
+        const hasShadow = Boolean(s.boxShadow && s.boxShadow !== 'none');
+        if (!hasBg && visibleBorderSides < 2 && !hasShadow) continue;
+      }
+
+      const tier = classifyRadiusTier(radiusPx, r.height);
+      const normVal = tier === 'pill' ? 'pill' : `${Math.round(radiusPx)}px`;
+      controlValueSet.add(normVal);
+      controlTierSet.add(tier);
+      if (controlSamples.length < 16) {
+        controlSamples.push({
+          tag: el.tagName.toLowerCase(),
+          label: (el.innerText || el.getAttribute('aria-label') || el.getAttribute('placeholder') || '').trim().slice(0, 32) || null,
+          radiusPx: Math.round(radiusPx),
+          normalized: normVal,
+          tier,
+        });
+      }
+    }
+
+    const cardUniqueValues = Array.from(cardValueSet);
+    const cardTiers = Array.from(cardTierSet);
+    const controlUniqueValues = Array.from(controlValueSet);
+    const controlTiers = Array.from(controlTierSet);
+    const radiusContract = {
+      cards: {
+        count: cardSamples.length,
+        uniqueValues: cardUniqueValues,
+        tiers: cardTiers,
+        samples: cardSamples.slice(0, 8),
+      },
+      controls: {
+        count: controlSamples.length,
+        uniqueValues: controlUniqueValues,
+        tiers: controlTiers,
+        samples: controlSamples.slice(0, 8),
+      },
+      cardDistinctCount: cardUniqueValues.length,
+      controlTierCount: controlTiers.length,
+      radiusDriftDetected: cardUniqueValues.length >= 3 || cardTiers.length >= 3 || controlTiers.length >= 3,
+    };
+
+    // 2. Section Rhythm (Consecutive Centered-Pyramid Monotony Check)
+    const hasSideBySideColumns = (container) => {
+      if (!isLayoutVisible(container)) return false;
+      const cs = getComputedStyle(container);
+      const isGrid = cs.display === 'grid' || cs.display === 'inline-grid';
+      const isRowFlex = (cs.display === 'flex' || cs.display === 'inline-flex') && cs.flexDirection.startsWith('row');
+      if (!isGrid && !isRowFlex) return false;
+      if (isGrid && cs.gridTemplateColumns.trim().split(/\s+/).length < 2) return false;
+
+      const visChildren = Array.from(container.children).filter((c) => {
+        if (!isLayoutVisible(c)) return false;
+        const ccs = getComputedStyle(c);
+        if (ccs.position === 'absolute' || ccs.position === 'fixed') return false;
+        const cr = c.getBoundingClientRect();
+        return cr.width >= 80 && cr.height >= 24;
+      });
+      if (visChildren.length < 2) return false;
+      const rects = visChildren.map((c) => c.getBoundingClientRect());
+      for (let i = 0; i < rects.length; i++) {
+        for (let j = i + 1; j < rects.length; j++) {
+          const a = rects[i];
+          const b = rects[j];
+          const horizSeparated = a.right <= b.left + 20 || b.right <= a.left + 20;
+          const vertOverlap = Math.min(a.bottom, b.bottom) > Math.max(a.top, b.top) + 4;
+          if (horizSeparated && vertOverlap) return true;
+        }
+      }
+      return false;
+    };
+
+    const detectSectionMultiCol = (secEl) => {
+      if (hasSideBySideColumns(secEl)) return true;
+      const queue = [{ el: secEl, depth: 0 }];
+      let visited = 0;
+      while (queue.length > 0 && visited < 40) {
+        const { el, depth } = queue.shift();
+        visited++;
+        if (depth > 0 && hasSideBySideColumns(el)) return true;
+        if (depth >= 4) continue;
+        for (const child of el.children) {
+          if (child.matches('header, nav, footer, button, a, svg, canvas')) continue;
+          if (!isLayoutVisible(child)) continue;
+          queue.push({ el: child, depth: depth + 1 });
+        }
+      }
+      return false;
+    };
+
+    const rhythmSequence = [];
+    let currentCenteredRun = 0;
+    let maxConsecutiveCentered = 0;
+
+    for (const sec of sections) {
+      if (sec.tag === 'header' || sec.tag === 'footer') continue;
+      const secEl = document.querySelector(`[data-unslop-audit-sec="${sec.idx}"]`);
+      if (!secEl || isHiddenOrInert(secEl)) continue;
+
+      const secRect = secEl.getBoundingClientRect();
+      const secCenter = secRect.left + secRect.width / 2;
+      const heading = Array.from(secEl.querySelectorAll('h1, h2, h3')).find((h) => {
+        if (isHiddenOrInert(h)) return false;
+        const hr = h.getBoundingClientRect();
+        return hr.width > 0 && hr.height > 0;
+      }) || null;
+
+      let isHeadingCentered = false;
+      let isHeadingLeftAligned = true;
+      if (heading) {
+        const hs = getComputedStyle(heading);
+        const hRect = heading.getBoundingClientRect();
+        const hCenter = hRect.left + hRect.width / 2;
+        const range = document.createRange();
+        range.selectNodeContents(heading);
+        const tr = range.getBoundingClientRect();
+        const textCenter = tr.width > 0 ? tr.left + tr.width / 2 : hCenter;
+
+        const isBoxBalancedCentered =
+          hs.textAlign !== 'right' &&
+          hs.textAlign !== 'end' &&
+          hRect.width < secRect.width * 0.65 &&
+          Math.abs(hCenter - secCenter) <= 48 &&
+          Math.abs(textCenter - secCenter) <= 48;
+
+        isHeadingCentered = hs.textAlign === 'center' || isBoxBalancedCentered;
+        isHeadingLeftAligned = !isHeadingCentered && hs.textAlign !== 'right' && hs.textAlign !== 'end';
+      } else {
+        isHeadingCentered = getComputedStyle(secEl).textAlign === 'center';
+        isHeadingLeftAligned = !isHeadingCentered;
+      }
+
+      const isMultiCol = detectSectionMultiCol(secEl);
+      let layout = 'left-aligned';
+      if (isMultiCol && isHeadingLeftAligned) {
+        layout = 'asymmetric-or-split';
+      } else if (isHeadingCentered) {
+        layout = 'centered';
+      }
+
+      if (layout === 'centered') {
+        currentCenteredRun++;
+        if (currentCenteredRun > maxConsecutiveCentered) maxConsecutiveCentered = currentCenteredRun;
+      } else {
+        currentCenteredRun = 0;
+      }
+
+      rhythmSequence.push({
+        index: sec.idx,
+        tag: sec.tag,
+        id: secEl.id || null,
+        layout,
+        heading: heading ? (heading.innerText || '').trim().replace(/\s+/g, ' ').slice(0, 60) : null,
+      });
+    }
+
+    const sectionRhythm = {
+      sectionCount: rhythmSequence.length,
+      sequence: rhythmSequence,
+      maxConsecutiveCentered,
+      monotonyDetected: maxConsecutiveCentered >= 3,
+    };
+
+    // 3. Stretched Void Cards (Anti-Void Flex-Stretch Check)
+    const stretchedVoidCards = [];
+    for (const el of document.querySelectorAll('body *')) {
+      if (isHiddenOrInert(el)) continue;
+      const r = el.getBoundingClientRect();
+      if (r.height <= 320 || r.width < 180 || r.width > 760) continue;
+      const s = getComputedStyle(el);
+      if (s.display !== 'flex' && s.display !== 'inline-flex') continue;
+      if (s.flexDirection !== 'column' && s.flexDirection !== 'column-reverse') continue;
+      if (s.justifyContent !== 'space-between') continue;
+
+      const visibleChildren = Array.from(el.children)
+        .filter((c) => {
+          if (isHiddenOrInert(c)) return false;
+          const cs = getComputedStyle(c);
+          if (cs.position === 'absolute' || cs.position === 'fixed') return false;
+          const cr = c.getBoundingClientRect();
+          return cr.width > 0 && cr.height > 0;
+        })
+        .sort((a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top);
+
+      if (visibleChildren.length < 2) continue;
+
+      let maxGap = 0;
+      for (let i = 1; i < visibleChildren.length; i++) {
+        const prevR = visibleChildren[i - 1].getBoundingClientRect();
+        const curR = visibleChildren[i].getBoundingClientRect();
+        const gap = curR.top - prevR.bottom;
+        if (gap > maxGap) maxGap = gap;
+      }
+      const maxGapPx = Math.round(maxGap);
+      const gapRatio = Number((maxGap / r.height).toFixed(2));
+      if (maxGapPx >= 110 || maxGap / r.height >= 0.28) {
+        const headingNode = el.querySelector('h1, h2, h3, h4');
+        const heading = ((headingNode?.innerText || el.innerText || '').trim().replace(/\s+/g, ' ')).slice(0, 60) || null;
+        stretchedVoidCards.push({
+          tag: el.tagName.toLowerCase(),
+          heading,
+          heightPx: Math.round(r.height),
+          maxGapPx,
+          gapRatio,
+        });
+        if (stretchedVoidCards.length >= 16) break;
+      }
+    }
+
+    // 4. Navbar Purity Check
+    const headerEl =
+      Array.from(document.querySelectorAll('body > header, header, [role="banner"]')).find((el) => !isHiddenOrInert(el)) ||
+      Array.from(document.querySelectorAll('nav, [role="navigation"]')).find((el) => {
+        if (isHiddenOrInert(el) || el.closest('footer')) return false;
+        const r = el.getBoundingClientRect();
+        return r.top < 120 && r.height >= 24 && r.height <= 220;
+      }) ||
+      null;
+
+    const isThemeToggleEl = (el) => {
+      const aria = (el.getAttribute('aria-label') || '').trim();
+      const title = (el.getAttribute('title') || '').trim();
+      const id = (el.getAttribute('id') || '').trim();
+      return (
+        el.hasAttribute('data-theme-toggle') ||
+        /(dark\s*mode|light\s*mode|theme)/i.test(aria) ||
+        /theme/i.test(title) ||
+        /theme[-_]?toggle/i.test(id)
+      );
+    };
+    const isMotionToggleEl = (el) => {
+      const aria = (el.getAttribute('aria-label') || '').trim();
+      const id = (el.getAttribute('id') || '').trim();
+      const text = (el.innerText || '').trim();
+      return /motion/i.test(aria) || /motion/i.test(id) || /^motion\s*(on|off|:\s*full|:\s*reduced)/i.test(text);
+    };
+    const isHamburgerToggleEl = (el) => {
+      const aria = (el.getAttribute('aria-label') || '').trim();
+      const title = (el.getAttribute('title') || '').trim();
+      const id = (el.getAttribute('id') || '').trim();
+      const cls = typeof el.className === 'string' ? el.className : '';
+      return (
+        /(hamburger|menu[-_]?toggle|mobile[-_]?nav|toggle[-_]?nav)/i.test(`${cls} ${id}`) ||
+        /(open|toggle|close)?\s*(main\s+)?(navigation|menu)/i.test(`${aria} ${title}`)
+      );
+    };
+
+    let navLinkCount = 0;
+    let themeToggleInHeader = false;
+    let motionToggleInHeader = false;
+    const navItems = [];
+
+    if (headerEl) {
+      const visibleAnchors = Array.from(headerEl.querySelectorAll('a[href]')).filter((a) => {
+        if (isHiddenOrInert(a)) return false;
+        const r = a.getBoundingClientRect();
+        return r.width > 0 && r.height > 0;
+      });
+      let brandAnchor =
+        visibleAnchors.find(
+          (a) =>
+            a.matches('[class*="brand" i], [class*="logo" i], [rel="home"], [aria-label*="home" i]') ||
+            Boolean(a.querySelector('[class*="brand" i], [class*="logo" i]')),
+        ) || null;
+      if (!brandAnchor && visibleAnchors.length > 0) {
+        const firstA = visibleAnchors[0];
+        const firstHref = (firstA.getAttribute('href') || '').trim();
+        if (firstHref === '/' || firstHref === '#top' || firstHref === '#' || (!firstA.closest('ul') && visibleAnchors.length >= 2 && Boolean(firstA.querySelector('svg, img')))) {
+          brandAnchor = firstA;
+        }
+      }
+
+      for (const el of headerEl.querySelectorAll('[data-theme-toggle], button, [role="button"], a[href]')) {
+        if (isHiddenOrInert(el)) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        if (isThemeToggleEl(el)) themeToggleInHeader = true;
+        if (isMotionToggleEl(el)) motionToggleInHeader = true;
+      }
+
+      const seenTriggers = new Set();
+      for (const el of headerEl.querySelectorAll('a[href], button, [role="button"]')) {
+        if (isHiddenOrInert(el)) continue;
+        if (seenTriggers.has(el)) continue;
+        if (el === brandAnchor) continue;
+        if (el.closest('[role="menu"], [role="listbox"], ul ul, [class*="dropdown-menu" i]')) continue;
+        const r = el.getBoundingClientRect();
+        if (r.width === 0 || r.height === 0) continue;
+        if (isThemeToggleEl(el) || isMotionToggleEl(el) || isHamburgerToggleEl(el)) continue;
+        seenTriggers.add(el);
+        navLinkCount++;
+        if (navItems.length < 12) {
+          navItems.push((el.innerText || el.getAttribute('aria-label') || el.getAttribute('href') || '').trim().replace(/\s+/g, ' ').slice(0, 40));
+        }
+      }
+    }
+
+    const hasThemeOrMotionInHeader = themeToggleInHeader || motionToggleInHeader;
+    const navClutter = {
+      headerPresent: Boolean(headerEl),
+      navLinkCount,
+      hasThemeOrMotionInHeader,
+      themeToggleInHeader,
+      motionToggleInHeader,
+      cluttered: navLinkCount > 6 || hasThemeOrMotionInHeader,
+      navItems,
+    };
+
+    // 5. Micro-UI / Terminal Wrapping Check
+    const wrappedMonoBars = [];
+    const seenWrapEls = new Set();
+    for (const el of document.querySelectorAll('[class*="statusline"], [class*="status-bar"], .cmd-box code, header nav a, header button')) {
+      if (seenWrapEls.has(el) || isHiddenOrInert(el)) continue;
+      seenWrapEls.add(el);
+      const r = el.getBoundingClientRect();
+      if (r.width === 0 || r.height === 0) continue;
+      const text = (el.innerText || '').trim().replace(/\s+/g, ' ');
+      if (!text || text.length > 85) continue;
+      if (el.closest('pre') && (el.textContent || '').includes('\n')) continue;
+      if (el.querySelector('br, p, div, h1, h2, h3, h4, ul, ol')) continue;
+
+      const s = getComputedStyle(el);
+      const fsPx = parseFloat(s.fontSize) || 0;
+      const rawLh = parseFloat(s.lineHeight);
+      const lineHeight = Number.isFinite(rawLh) && rawLh > 0 ? rawLh : fsPx * 1.25;
+      if (!(lineHeight > 0) || r.height <= lineHeight * 1.85) continue;
+
+      // Measure actual inline text line wrapping to avoid false positives on 44px min-height single-line tap targets
+      const walker = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      const lineBands = new Set();
+      let minTop = Infinity;
+      let maxBottom = -Infinity;
+      let node;
+      while ((node = walker.nextNode())) {
+        if (!node.textContent || !node.textContent.trim()) continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        for (const cr of range.getClientRects()) {
+          if (cr.width < 1 || cr.height < 1) continue;
+          lineBands.add(Math.round(cr.top / Math.max(4, lineHeight * 0.45)));
+          if (cr.top < minTop) minTop = cr.top;
+          if (cr.bottom > maxBottom) maxBottom = cr.bottom;
+        }
+      }
+
+      const wrappedTextSpan = maxBottom > minTop ? maxBottom - minTop : 0;
+      const wrappedOntoMultipleLines = lineBands.size >= 2 || wrappedTextSpan > lineHeight * 1.45;
+      if (!wrappedOntoMultipleLines) continue;
+
+      wrappedMonoBars.push({
+        tag: el.tagName.toLowerCase(),
+        text,
+        heightPx: Math.round(r.height),
+        lineHeightPx: Number(lineHeight.toFixed(1)),
+        lineCount: lineBands.size,
+        className: typeof el.className === 'string' ? el.className.trim().slice(0, 48) || null : null,
+      });
+      if (wrappedMonoBars.length >= 16) break;
+    }
+
+    // 6. Generic AI Font Warning + Typography Metadata
+    const GENERIC_FONTS = [
+      { label: 'Inter', re: /^(?:inter(?:\s+var|\s+variable)?|__inter_[a-z0-9]+)$/i },
+      { label: 'Roboto', re: /^(?:roboto|__roboto_[a-z0-9]+)$/i },
+      { label: 'Poppins', re: /^(?:poppins|__poppins_[a-z0-9]+)$/i },
+      { label: 'Plus Jakarta Sans', re: /^(?:plus\s+jakarta\s+sans|__plus_jakarta_sans_[a-z0-9]+)$/i },
+      { label: 'Space Grotesk', re: /^(?:space\s+grotesk|__space_grotesk_[a-z0-9]+)$/i },
+    ];
+    const cleanPrimaryFamily = (fontFamilyStr) =>
+      String(fontFamilyStr || '').split(',')[0].replace(/["']/g, '').trim() || null;
+
+    const h1El = Array.from(document.querySelectorAll('h1')).find((el) => !isHiddenOrInert(el)) || document.querySelector('h1');
+    const bodyRefEl = document.body;
+    const h1Style = h1El ? getComputedStyle(h1El) : null;
+    const bodyStyle = bodyRefEl ? getComputedStyle(bodyRefEl) : null;
+
+    const primaryBodyP = Array.from(document.querySelectorAll('main p, article p, section p, p')).find((p) => {
+      if (isHiddenOrInert(p)) return false;
+      const pr = p.getBoundingClientRect();
+      return pr.width >= 120 && (p.innerText || '').trim().length >= 30;
+    });
+    const bodyPStyle = primaryBodyP ? getComputedStyle(primaryBodyP) : null;
+
+    const defaultFontsSet = new Set();
+    for (const st of [h1Style, bodyStyle, bodyPStyle]) {
+      if (!st) continue;
+      const primary = cleanPrimaryFamily(st.fontFamily);
+      if (!primary) continue;
+      for (const spec of GENERIC_FONTS) {
+        if (spec.re.test(primary)) defaultFontsSet.add(spec.label);
+      }
+    }
+    const defaultFontFlags = Array.from(defaultFontsSet);
+
+    const typographyMeta = {
+      h1: h1Style
+        ? {
+            primaryFamily: cleanPrimaryFamily(h1Style.fontFamily),
+            fontFamily: h1Style.fontFamily,
+            weight: h1Style.fontWeight,
+            letterSpacing: h1Style.letterSpacing,
+            fontSizePx: Number(parseFloat(h1Style.fontSize).toFixed(1)),
+            lineHeightPx: Number((parseFloat(h1Style.lineHeight) || parseFloat(h1Style.fontSize) * 1.2).toFixed(1)),
+          }
+        : null,
+      body: bodyStyle
+        ? {
+            primaryFamily: cleanPrimaryFamily((bodyPStyle || bodyStyle).fontFamily),
+            fontFamily: (bodyPStyle || bodyStyle).fontFamily,
+            weight: (bodyPStyle || bodyStyle).fontWeight,
+            fontSizePx: Number(parseFloat((bodyPStyle || bodyStyle).fontSize).toFixed(1)),
+            lineHeightPx: Number((parseFloat((bodyPStyle || bodyStyle).lineHeight) || parseFloat((bodyPStyle || bodyStyle).fontSize) * 1.4).toFixed(1)),
+          }
+        : null,
+    };
+
+    // 7. Copy Economy Telemetry
+    const countWords = (text) =>
+      String(text || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean).length;
+
+    const computeMedian = (nums) => {
+      if (!nums || nums.length === 0) return 0;
+      const sorted = [...nums].sort((a, b) => a - b);
+      const mid = Math.floor(sorted.length / 2);
+      if (sorted.length % 2 === 1) return sorted[mid];
+      return Number(((sorted[mid - 1] + sorted[mid]) / 2).toFixed(1));
+    };
+
+    const FAQ_OR_LEGAL_RE = /\b(faq|faqs|frequently\s+asked|accordion|legal|terms|privacy|disclaimer|policy|license|copyright|imprint|tos)\b/i;
+    const isFaqOrLegalCard = (el) => {
+      if (el.closest('details, footer, [role="region"][aria-labelledby*="faq" i]')) return true;
+      let cur = el;
+      while (cur && cur !== document.body) {
+        const meta = [
+          cur.id || '',
+          typeof cur.className === 'string' ? cur.className : '',
+          cur.getAttribute('aria-label') || '',
+          cur.getAttribute('data-section') || '',
+        ].join(' ');
+        if (FAQ_OR_LEGAL_RE.test(meta)) return true;
+        if (cur.tagName === 'SECTION') {
+          const secHeading = cur.querySelector('h1, h2, h3');
+          if (secHeading && FAQ_OR_LEGAL_RE.test(secHeading.innerText || secHeading.textContent || '')) {
+            return true;
+          }
+          break;
+        }
+        cur = cur.parentElement;
+      }
+      return false;
+    };
+
+    const h1WordCount = h1El ? countWords(h1El.innerText || h1El.textContent) : 0;
+
+    const leafCardEls = cardCandidateEls.filter((el) => {
+      if (el.closest('header, nav, footer')) return false;
+      const nested = cardCandidateEls.filter((other) => other !== el && el.contains(other));
+      if (nested.length >= 2) return false;
+      if (nested.length === 1) {
+        const ownWords = countWords(el.innerText || el.textContent);
+        const childWords = countWords(nested[0].innerText || nested[0].textContent);
+        if (ownWords > 0 && childWords / ownWords >= 0.6) return false;
+      }
+      return true;
+    });
+
+    const cardWordCounts = [];
+    const wordyCards = [];
+    for (const el of leafCardEls) {
+      const words = countWords(el.innerText || el.textContent);
+      if (words <= 0) continue;
+      cardWordCounts.push(words);
+      if (words > 75 && !isFaqOrLegalCard(el) && wordyCards.length < 16) {
+        const headingNode = el.querySelector('h1, h2, h3, h4');
+        const heading = ((headingNode?.innerText || '').trim().replace(/\s+/g, ' ')).slice(0, 60) || null;
+        wordyCards.push({
+          tag: el.tagName.toLowerCase(),
+          heading,
+          wordCount: words,
+          className: typeof el.className === 'string' ? el.className.trim().slice(0, 48) || null : null,
+        });
+      }
+    }
+
+    const medianCardWordCount = computeMedian(cardWordCounts);
+    const copyDensityTier =
+      medianCardWordCount > 45 || wordyCards.length > 0
+        ? 'wordy'
+        : medianCardWordCount <= 22 && h1WordCount <= 12
+          ? 'minimal'
+          : 'balanced';
+
+    const copyEconomy = {
+      h1WordCount,
+      medianCardWordCount,
+      wordyCards,
+      copyDensityTier,
+    };
+
+    const primaryCanvasColors = {
+      bodyBackground: rgbToHex(bodyBgRgb),
+      bodyText: rgbToHex(bodyTextRgb),
+      topSurfaces: Array.from(surfaceFreq.entries())
+        .sort((a, b) => b[1] - a[1])
+        .slice(0, 6)
+        .map(([hex]) => hex),
+    };
+
+    return {
+      studioCraftCore: {
+        radiusContract,
+        sectionRhythm,
+        stretchedVoidCards,
+        navClutter,
+        wrappedMonoBars,
+        defaultFontFlags,
+        copyEconomy,
+      },
+      typographyMeta,
+      primaryCanvasColors,
+    };
+  }, sectionMeta);
+
+  const sc = telemetry.studioCraftCore;
+  const scWarnings = [];
+  if (sc.radiusContract.radiusDriftDetected) {
+    scWarnings.push(
+      `Studio craft: 3-radius drift detected (cards: [${sc.radiusContract.cards.uniqueValues.join(', ')}]; controls tiers: [${sc.radiusContract.controls.tiers.join(', ')}])`,
+    );
+  }
+  if (sc.sectionRhythm.monotonyDetected) {
+    scWarnings.push(
+      `Studio craft: section rhythm monotony (${sc.sectionRhythm.maxConsecutiveCentered} consecutive centered sections; vary layout rhythm)`,
+    );
+  }
+  if (sc.stretchedVoidCards.length > 0) {
+    scWarnings.push(
+      `Studio craft: ${sc.stretchedVoidCards.length} flex-column space-between card(s) leave a vertical void (>= 110px or >= 28% height)`,
+    );
+  }
+  if (sc.navClutter.hasThemeOrMotionInHeader || sc.navClutter.navLinkCount > 6) {
+    const reasons = [];
+    if (sc.navClutter.navLinkCount > 6) reasons.push(`${sc.navClutter.navLinkCount} top-level nav triggers (> 6)`);
+    if (sc.navClutter.hasThemeOrMotionInHeader) reasons.push('theme/motion toggle placed directly in primary header');
+    scWarnings.push(`Studio craft: navbar clutter (${reasons.join('; ')})`);
+  }
+  if (sc.wrappedMonoBars.length > 0) {
+    scWarnings.push(
+      `Studio craft: ${sc.wrappedMonoBars.length} single-line status/nav/micro-UI bar(s) wrapped unintentionally onto multiple lines`,
+    );
+  }
+  if (sc.defaultFontFlags.length > 0 && !allowGenericFonts) {
+    scWarnings.push(
+      `Studio craft: generic AI font(s) detected (${sc.defaultFontFlags.join(', ')}); pass --allow-generic-fonts to suppress when intentional`,
+    );
+  }
+  if (sc.copyEconomy.wordyCards.length > 0) {
+    scWarnings.push(
+      `Studio craft: ${sc.copyEconomy.wordyCards.length} card(s) exceed 75 words of prose (tighten copy economy)`,
+    );
+  }
+
+  return {
+    studioCraft: {
+      ...sc,
+      allowGenericFonts: Boolean(allowGenericFonts),
+      warnings: scWarnings,
+    },
+    typographyMeta: telemetry.typographyMeta,
+    primaryCanvasColors: telemetry.primaryCanvasColors,
+  };
+}
+
+async function captureViewportTiles(page, outDir, prefix, viewportHeight, maxTiles) {
+  const scrollHeight = await page.evaluate(() => document.documentElement.scrollHeight);
+  const tileCount = Math.min(maxTiles, Math.max(1, Math.ceil(scrollHeight / viewportHeight)));
+  const files = [];
+  const metadata = [];
+  let prevY = -1;
+
+  for (let i = 0; i < tileCount; i++) {
+    const y = Math.min(Math.max(0, scrollHeight - viewportHeight), i * viewportHeight);
+    if (i > 0 && y === prevY) break;
+    prevY = y;
+
+    await page.evaluate((scrollY) => window.scrollTo(0, scrollY), y);
+    await page.waitForTimeout(160);
+    const file = `${prefix}-${i + 1}.png`;
+    await page.screenshot({ path: path.join(outDir, file) });
+    files.push(file);
+    metadata.push({ file, path: path.resolve(outDir, file), scrollY: y });
+  }
+
+  await page.evaluate(() => window.scrollTo(0, 0));
+  await page.waitForTimeout(120);
+  return { files, metadata };
+}
+
+function buildVisualCriticChecklist({
+  url,
+  auditedAt,
+  outDir,
+  desktopTileResult,
+  mobileTileResult,
+  studioCraft,
+  domAudit,
+  typographyMeta,
+  primaryCanvasColors,
+}) {
+  return {
+    meta: {
+      url,
+      auditedAt,
+      outputDir: path.resolve(outDir),
+      rubricScale: '7-axis-10-point',
+    },
+    desktopTiles: desktopTileResult.files,
+    mobileTiles: mobileTileResult.files,
+    desktopTilePaths: desktopTileResult.metadata.map((m) => m.path),
+    mobileTilePaths: mobileTileResult.metadata.map((m) => m.path),
+    tileMetadata: {
+      desktop: desktopTileResult.metadata,
+      mobile: mobileTileResult.metadata,
+    },
+    studioCraftWarnings: studioCraft.warnings,
+    copyEconomy: studioCraft.copyEconomy,
+    typographyCraft: {
+      h1Family: typographyMeta.h1?.primaryFamily ?? null,
+      h1FontStack: typographyMeta.h1?.fontFamily ?? null,
+      h1Weight: typographyMeta.h1?.weight ?? null,
+      h1Tracking: typographyMeta.h1?.letterSpacing ?? null,
+      h1SizePx: typographyMeta.h1?.fontSizePx ?? null,
+      bodyFamily: typographyMeta.body?.primaryFamily ?? null,
+      bodyWeight: typographyMeta.body?.weight ?? null,
+      bodySizePx: typographyMeta.body?.fontSizePx ?? null,
+      h1ToBodyRatio: domAudit.antiSlop.h1ToBodyRatio,
+      defaultFontFlags: studioCraft.defaultFontFlags,
+      allowGenericFonts: studioCraft.allowGenericFonts,
+    },
+    deadSpaceAudit: {
+      stretchedVoidCardCount: studioCraft.stretchedVoidCards.length,
+      stretchedVoidCards: studioCraft.stretchedVoidCards,
+    },
+    microUiWrapping: {
+      wrappedCount: studioCraft.wrappedMonoBars.length,
+      wrappedMonoBars: studioCraft.wrappedMonoBars,
+      clippedTextCount: domAudit.clippedText.length,
+      clippedText: domAudit.clippedText,
+    },
+    rhythmAndMonotony: {
+      sectionCount: studioCraft.sectionRhythm.sectionCount,
+      maxConsecutiveCentered: studioCraft.sectionRhythm.maxConsecutiveCentered,
+      monotonyDetected: studioCraft.sectionRhythm.monotonyDetected,
+      sequence: studioCraft.sectionRhythm.sequence,
+    },
+    referenceFidelity: {
+      primaryCanvasColors,
+      loadedFonts: domAudit.loadedFonts,
+      fontFallbackWarnings: domAudit.fontFallbackWarnings,
+      navClutter: studioCraft.navClutter,
+    },
+    surfaceCohesion: {
+      radiusContract: studioCraft.radiusContract,
+      heavyShadowCardRatio: domAudit.antiSlop.heavyShadowCardRatio,
+      purpleIndigoGradientCount: domAudit.antiSlop.purpleIndigoGradientCount,
+    },
+    sideBySideVisualLineage: {
+      requiredReferenceAssets: ['desktop-top.png', 'desktop-full.png'],
+      generatedTiles: desktopTileResult.files,
+      prompt:
+        'Compare generated tiles side-by-side against reference captures: are background substrates, framing lines, hero geometry, surface polarity, and copy economy unmistakably aligned?',
+    },
+  };
+}
+
+export async function auditUI(url, outputDir, options = {}) {
+  const { allowGenericFonts = false, studioCraftWarnings = true } = options || {};
   const outDir = await ensureDir(outputDir);
   const sectionsDir = await ensureDir(path.join(outDir, 'sections'));
   const browser = await launchBrowser();
@@ -1161,6 +2092,10 @@ export async function auditUI(url, outputDir) {
     await page.evaluate(() => window.scrollTo(0, 0));
     await page.waitForTimeout(150);
 
+    const { studioCraft, typographyMeta, primaryCanvasColors } = await runStudioCraftAudit(page, sectionMeta, {
+      allowGenericFonts,
+    });
+
     const reducedMotionToggleCheck = await probeReducedMotionToggle(page, canvasChecks);
 
     const primaryContrast = await runContrastAudit(page);
@@ -1479,10 +2414,20 @@ export async function auditUI(url, outputDir) {
     }
 
     const desktopOverflow = await checkViewportOverflow(page, 1440, 900);
+    await page.evaluate(() => {
+      if (document.activeElement && document.activeElement !== document.body) {
+        document.activeElement.blur?.();
+      }
+      window.scrollTo(0, 0);
+    });
+    await page.waitForTimeout(120);
+    const desktopTileResult = await captureViewportTiles(page, outDir, 'critic-desktop', 900, 6);
+
     const tabletOverflow = await checkViewportOverflow(page, 768, 1024);
     const mobileNarrowOverflow = await checkViewportOverflow(page, 320, 720);
     const mobileOverflow = await checkViewportOverflow(page, 390, 844);
     await page.screenshot({ path: path.join(outDir, 'mobile.png') });
+    const mobileTileResult = await captureViewportTiles(page, outDir, 'critic-mobile', 844, 5);
 
     // Mobile tap target checks + floating fixed-overlay collision check at BOTH y=0 and scrolled 45%
     const checkMobileCollisions = async () =>
@@ -1672,9 +2617,13 @@ export async function auditUI(url, outputDir) {
     if (domAudit.antiSlop.heavyShadowCardRatio > 0.6) {
       warnings.push(`Heavy shadow saturation (${Math.round(domAudit.antiSlop.heavyShadowCardRatio * 100)}% of cards)`);
     }
+    if (studioCraftWarnings !== false && studioCraft.warnings.length > 0) {
+      warnings.push(...studioCraft.warnings);
+    }
 
+    const auditedAt = new Date().toISOString();
     const auditReport = {
-      meta: { url, auditedAt: new Date().toISOString() },
+      meta: { url, auditedAt },
       summary: {
         passed: criticalErrors.length === 0,
         criticalErrorCount: criticalErrors.length,
@@ -1725,6 +2674,7 @@ export async function auditUI(url, outputDir) {
         smallTapTargets,
       },
       antiSlop: domAudit.antiSlop,
+      studioCraft,
       screenshots: {
         desktop: 'desktop.png',
         desktopFull: 'desktop-full.png',
@@ -1732,10 +2682,25 @@ export async function auditUI(url, outputDir) {
         focusCheck: 'focus-check.png',
         scrollSnapshots,
         sections: sectionScreenshots,
+        desktopTiles: desktopTileResult.files,
+        mobileTiles: mobileTileResult.files,
       },
     };
 
+    const visualCriticChecklist = buildVisualCriticChecklist({
+      url,
+      auditedAt,
+      outDir,
+      desktopTileResult,
+      mobileTileResult,
+      studioCraft,
+      domAudit,
+      typographyMeta,
+      primaryCanvasColors,
+    });
+
     await fs.writeFile(path.join(outDir, 'audit.json'), JSON.stringify(auditReport, null, 2));
+    await fs.writeFile(path.join(outDir, 'visual-critic-checklist.json'), JSON.stringify(visualCriticChecklist, null, 2));
     return auditReport;
   } finally {
     await browser.close();
@@ -1768,7 +2733,7 @@ function resolveRouteUrl(baseUrl, route) {
   return new URL(trimmed, normalizedBase).href;
 }
 
-export async function auditMultiRoute(baseUrl, routes, outputDir) {
+export async function auditMultiRoute(baseUrl, routes, outputDir, options = {}) {
   const outDir = await ensureDir(outputDir);
   const rawList = Array.isArray(routes) ? routes : String(routes || '/').split(',');
   const routeList = rawList.map((r) => String(r).trim()).filter(Boolean);
@@ -1782,7 +2747,7 @@ export async function auditMultiRoute(baseUrl, routes, outputDir) {
     const routeUrl = resolveRouteUrl(baseUrl, route);
     const routeOutDir = path.join(outDir, subDir);
     try {
-      const report = await auditUI(routeUrl, routeOutDir);
+      const report = await auditUI(routeUrl, routeOutDir, options);
       routeRecords.push({
         route,
         url: routeUrl,
@@ -1898,24 +2863,37 @@ if (isMain) {
   const rawArgs = process.argv.slice(2);
   const positional = [];
   let routesArg = null;
+  let allowGenericFonts = false;
+  let studioCraftWarnings = true;
   for (let i = 0; i < rawArgs.length; i++) {
     const arg = rawArgs[i];
     if (arg === '--routes' && i + 1 < rawArgs.length) {
       routesArg = rawArgs[++i];
     } else if (arg.startsWith('--routes=')) {
       routesArg = arg.slice('--routes='.length);
+    } else if (arg === '--allow-generic-fonts') {
+      allowGenericFonts = true;
+    } else if (arg.startsWith('--allow-generic-fonts=')) {
+      allowGenericFonts = arg.slice('--allow-generic-fonts='.length).toLowerCase() !== 'false';
+    } else if (arg === '--studio-craft') {
+      studioCraftWarnings = true;
+    } else if (arg === '--no-studio-craft' || arg === '--studio-craft=false') {
+      studioCraftWarnings = false;
     } else if (!arg.startsWith('--')) {
       positional.push(arg);
     }
   }
   const [targetUrl, outDir = './audit-out'] = positional;
   if (!targetUrl) {
-    console.error('Usage: node skills/unslop/scripts/audit_ui.mjs <url> [outputDir] [--routes /,/pricing,/about]');
+    console.error(
+      'Usage: node skills/unslop/scripts/audit_ui.mjs <url> [outputDir] [--routes /,/pricing,/about] [--allow-generic-fonts]',
+    );
     process.exit(1);
   }
+  const auditOptions = { allowGenericFonts, studioCraftWarnings };
   if (routesArg !== null) {
     const routesList = routesArg.split(',').map((r) => r.trim()).filter(Boolean);
-    const multiReport = await auditMultiRoute(targetUrl, routesList, outDir);
+    const multiReport = await auditMultiRoute(targetUrl, routesList, outDir, auditOptions);
     console.log(
       JSON.stringify(
         {
@@ -1934,7 +2912,7 @@ if (isMain) {
       process.exitCode = 1;
     }
   } else {
-    const report = await auditUI(targetUrl, outDir);
+    const report = await auditUI(targetUrl, outDir, auditOptions);
     console.log(JSON.stringify(report.summary, null, 2));
     if (!report.summary.passed) {
       process.exitCode = 1;

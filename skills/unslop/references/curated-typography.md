@@ -1,33 +1,26 @@
-# Curated Typography Pairings
+# Curated Typography Guide
 
-Never default to raw unstyled `Inter` / `Arial` / generic bold system serif unless the user explicitly requires an offline/zero-CDN build. Always include `font-display=swap` (via Google Fonts) paired with sensible fallback metrics.
+> **Primary Typography Registry:** Load [`type-pairings.md`](type-pairings.md) for the complete curated pairings, ready-to-copy Google Fonts / Fontshare `<link>` snippets, optical CSS rules, and proprietary font substitution table.
 
-## 1. Editorial Craft & Developer Tooling (Warm Paper or Espresso Dark)
-- **Display:** `Newsreader` (weights `400`, `500`, italic `400/500`, tight `-0.03em` tracking; ideal for single-word italic accent emphasis like `<em>Crafted</em>`)
-- **UI & Body:** `Plus Jakarta Sans` (`400`, `500`, `600`, `700`)
-- **Mono / Telemetry:** `JetBrains Mono` (`400`, `500`)
-- **Google Fonts Import:**
-  ```html
-  <link rel="preconnect" href="https://fonts.googleapis.com" />
-  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Newsreader:ital,opsz,wght@0,6..72,400..500;1,6..72,400..500&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet" />
-  ```
+---
 
-## 2. Swiss Architectural & Creative Studio
-- **Display:** `Instrument Serif` (`400`, italic `400`, `-0.025em` tracking) or `Syne` (`600`, `700`)
-- **UI & Body:** `DM Sans` or `Instrument Sans` (`400`, `500`, `600`)
-- **Mono:** `IBM Plex Mono` (`400`, `500`)
+## Core Rules (Synced with [`type-pairings.md`](type-pairings.md))
 
-## 3. High-Precision SaaS / Engineering Console
-- **Display & UI:** `Space Grotesk` (`500`, `600`, `700`) paired with `Plus Jakarta Sans` or `IBM Plex Sans` (`400`, `500`, `600`)
-- **Mono / Readouts:** `JetBrains Mono` or `IBM Plex Mono` with `font-variant-numeric: tabular-nums`
+1. **Banned Default Sans Families:** Never default to `Inter`, `Plus Jakarta Sans`, `Space Grotesk`, `Poppins`, or `Roboto` unless `.unslop/inspect/reference-tokens.json` proves the inspiration URL renders them in computed styles (or the user explicitly requests them).
+2. **Strict Optical CSS Rules:**
+   - Enable `font-optical-sizing: auto` across body and optical display faces.
+   - Set display headlines (`h1` / `h2`) at **`400`–`500`** medium weights (never bloated `700`/`800` defaults) with tight negative display tracking (`-0.025em` to `-0.04em`).
+   - Enforce `font-variant-numeric: tabular-nums` on every price, metric, timer, counter, and telemetry readout.
+   - Always include `display=swap` on webfont imports paired with calibrated system fallback stacks.
 
-## 4. Minimalist / Warm Hardware Instrument
-- **Display & Labels:** `IBM Plex Sans` (`500`, `600`, uppercase micro-labels at `0.72rem` + `0.08em` tracking)
-- **Readouts:** `JetBrains Mono` (`font-variant-numeric: tabular-nums`)
+---
 
-## Proprietary Font Substitution Guide
-When `inspect_site.mjs` flags commercial/self-hosted fonts:
-- `APK Protocol` / `Söhne` / `GT America` -> `Plus Jakarta Sans` or `Instrument Sans` (or `Space Grotesk` for tight technical displays)
-- `KH Teka Mono` / `Berkeley Mono` -> `JetBrains Mono` or `IBM Plex Mono`
-- `Tiempos` / `Editorial New` -> `Newsreader` or `Instrument Serif`
+## Quick Selection Matrix
+
+| Aesthetic Direction | Display & Emphasis | UI & Body | Mono / Telemetry | Full Import & Rules |
+| :--- | :--- | :--- | :--- | :--- |
+| **Sharp Editorial Serif** | `Instrument Serif` (`400`, `italic 400` on emphasis phrases) or `Newsreader` / `Source Serif 4` (`400..500`) | `Geist` or `Figtree` (`400`, `500`) | `JetBrains Mono` or `IBM Plex Mono` (`400`, `500`) | See Registry A in [`type-pairings.md`](type-pairings.md) |
+| **Infrastructure Neo-Grotesk** | `Figtree` (`500`, `-0.03em` tracking) or `Switzer` / `General Sans` | `Figtree` (`400`, `500`) or `Switzer` | `JetBrains Mono` (`400`, `500`) | See Registry B in [`type-pairings.md`](type-pairings.md) |
+| **Minimalist / Hardware Instrument & Swiss Studio** | `DM Sans` or `IBM Plex Sans` (`400`, `500`; optional `Instrument Serif` pull-quotes) | `DM Sans` or `IBM Plex Sans` (`400`, `500`) | `JetBrains Mono` (`400`, `500`, `tabular-nums`) | See Registry C in [`type-pairings.md`](type-pairings.md) |
+
+For proprietary font mapping (`FT Kunst Grotesk`, `STK Bureau Sans`, `Apercu Mono Pro`, `Söhne`, `Tiempos`, etc.) and offline fallback stacks, follow [`type-pairings.md`](type-pairings.md#4-proprietary-font-substitution-table).
