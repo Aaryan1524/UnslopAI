@@ -2,7 +2,7 @@
 
 Author this spec at **`.unslop/brief.md`** at the end of Phase 0 (after silent recon and the request-specific adaptive Q&A) and get quick user approval **before** writing any application code. Every downstream phase—including Wave 1–3 parallel workers and the independent fresh-context reviewer—reads `.unslop/brief.md` as the single source of truth.
 
-> **Workspace Hygiene:** Keep all scratch telemetry and contracts under `.unslop/` (`brief.md`, `stack-report.json`, `inspect/`, `DESIGN.md`, `COMPONENTS.md`, `audit/`) and recommend adding `.unslop/` to the target repository's `.gitignore`.
+> **Workspace Hygiene:** Keep all scratch telemetry and contracts under `.unslop/` (`brief.md`, `stack-report.json`, `inspect/`, `DESIGN.md`, `COMPONENTS.md`, `audit/`). Ensure `.unslop/` is listed in the target repository's `.gitignore` (or clean up temporary recon/audit artifacts before final delivery) so generated projects never commit scratch captures.
 
 ---
 

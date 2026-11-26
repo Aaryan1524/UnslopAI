@@ -6,6 +6,7 @@ audit-out/
 inspect-out/
 rea-out/
 unslop-out/
+.unslop/
 .tmp-review/
 *.tgz
 .env
