@@ -1,43 +1,46 @@
-# Execution Modes, Depth Presets & Starter Prompts
+# Execution Modes, Depth Presets & Starter Prompts (v2.0.0)
 
-The single portable `unslop` skill adapts automatically to the user's goal and time budget instead of forcing every request through one heavyweight pipeline. Lock the exact **Goal Mode** and **Depth Preset** during Phase 0 (`Inspect-First → Adaptive Q&A → .unslop/brief.md`).
+The single portable `unslop` Studio Engine adapts automatically to the user's goal and time budget instead of forcing every request through one heavyweight pipeline. Lock the exact **Goal Mode** and **Depth Preset** during Phase 0 (`Prompt Parsing + Silent Recon → Adaptive Discovery → .unslop/brief.md`).
 
 ---
 
-## 1. Execution Router Matrix (Mode × Depth)
+## 1. Execution Router Matrix (v2.0.0 — Mode × Depth)
 
-| Preset | Best For | Phase 0 Recon & Q&A | Contracts & Media | Build Strategy | QA & Review Loop |
+| Preset | Best For | Phase 0 Recon & Discovery | Phase 0.5 Style Tile & Contracts | Build Strategy | QA, Motion Video & Critic Loop |
 | :--- | :--- | :--- | :--- | :--- | :--- |
-| **`fast`** | Hackathons, rapid prototypes, quick visual spikes | `doctor.mjs` + `detect_stack.mjs` (if repo) + `inspect_site.mjs` (if URL); 1–2 short Q&A rounds (or *"Use best defaults"*) | Compact `.unslop/brief.md` only (skip heavy separate `DESIGN.md`/`COMPONENTS.md` split); skip `rea_inspect.mjs` and bespoke shader/illustration generation (use crisp CSS, clean SVG, or existing assets) | Single-pass modular build in-thread | 1 `audit_ui.mjs` pass (fix critical errors: overflow, contrast, broken links/images) |
-| **`standard`** | Day-to-day product pages, app redesigns, balanced quality & speed | Full Phase 0 recon + 2–3 request-specific Q&A rounds | `.unslop/brief.md` + `.unslop/DESIGN.md` + `.unslop/COMPONENTS.md`; targeted media synthesis where needed | Modular component-by-component build | 1–2 `audit_ui.mjs` passes + visual screenshot check |
-| **`deep`** | Launch-ready business websites, flagship marketing & interactive web apps | Full Phase 0 recon + optional `rea_inspect.mjs` (when Node supports it) + 2–3 request-specific Q&A rounds | Full `.unslop/brief.md` + Inspiration Translation Matrix + `.unslop/DESIGN.md` + `.unslop/COMPONENTS.md` + cohesive art-directed media batches | **Two-Wave Disjoint Parallel Orchestration** ([`parallel-orchestration.md`](parallel-orchestration.md)) with sequential fallback on single-agent hosts | Mandatory 2-pass `audit_ui.mjs` (`--routes` for multi-route) + **Independent Fresh-Context Read-Only Reviewer** scoring all 5 craft axes `>= 4/5` |
-| **`extract-component`** | Porting or dissecting **one specific animation, shader, or interactive widget** into an existing or standalone codebase | `detect_stack.mjs` (target repo) + `inspect_site.mjs` (`css-motion.json`, `shaders.json`, `interactiveStates`, tall-section filmstrips) + optional `rea_inspect.mjs`; 1–2 technical Q&A rounds scoped strictly to that component | Focused `.unslop/brief.md` (component scope, trigger/physics breakdown, mount point, reduced-motion contract) — skips site-wide palette/footer/multi-route overhead | Isolated drop-in component adapted to detected framework/styling stack | Targeted `audit_ui.mjs` check on the rendered component (reduced-motion toggle, contrast, keyboard focus, `Escape` dismissal, zero overflow) |
+| **`fast`** | Hackathons, rapid prototypes, quick visual spikes | `doctor.mjs` + `detect_stack.mjs` (if repo) + `inspect_site.mjs` (if URL); **1–2 rapid questions** (or *"Use best defaults"*) | Compact `.unslop/brief.md` only; **skips Phase 0.5 Hero Style Tile**, separate `DESIGN.md`/`COMPONENTS.md` split, and bespoke media batches (uses crisp CSS/SVG or existing assets) | Single-pass modular build in-thread | **1 `audit_ui.mjs` pass** (fix critical overflow, contrast, broken links/images); **skips Motion Video QA** & Design Director Critic |
+| **`standard`** | Day-to-day product sites, marketing launches, app redesigns | Full Phase 0 recon (`inspect_site.mjs` + `extract_reference.mjs` + visual screenshot inspection) + **10–15 questions across 3–4 adaptive intervals** | **Mandatory Phase 0.5 Hero Style Tile Checkpoint** ([`style-tile-checkpoint.md`](style-tile-checkpoint.md)) + `.unslop/brief.md` + `.unslop/DESIGN.md` + `.unslop/COMPONENTS.md` + targeted media under `< 500 KB` budget | Modular component-by-component build | 1–2 `audit_ui.mjs` passes + visual screenshot check + **optional `record_motion_qa.mjs`** |
+| **`deep`** | Flagship business websites, launch-ready marketing & interactive web apps | Full Phase 0 recon + optional `rea_inspect.mjs` (when Node supports it) + **10–15 questions across 4 full intervals** (5-Dimension Coverage Matrix) | **Mandatory Phase 0.5 Hero Style Tile Checkpoint** ([`style-tile-checkpoint.md`](style-tile-checkpoint.md)) + **Locked 1-Room Art-Direction Seed** ([`visual-art-direction-and-media.md`](visual-art-direction-and-media.md)) + Full `.unslop/brief.md` + Inspiration Translation Matrix + `.unslop/DESIGN.md` + `.unslop/COMPONENTS.md` | **4-Specialist Parallel Guild** ([`parallel-orchestration.md`](parallel-orchestration.md)) with sequential fallback on single-agent hosts | Multi-route `audit_ui.mjs` (`--routes`) + **mandatory `record_motion_qa.mjs`** (desktop + mobile `.webm` walkthrough + keyframes) + **8-Axis Fresh-Context Design Director Critic (`>= 8/10`)** |
+| **`extract-component`** | Porting or dissecting **one specific animation, shader, or interactive widget** into an existing or standalone codebase | `detect_stack.mjs` (target repo) + `inspect_site.mjs` (`css-motion.json`, `shaders.json`, `interactiveStates`, tall-section filmstrips) + optional `rea_inspect.mjs`; **3–5 targeted technical questions** scoped strictly to component mechanics | Focused `.unslop/brief.md` (props, trigger/physics breakdown, mount point, reduced-motion contract); **skips Phase 0.5 Style Tile** and site-wide palette/footer/multi-route overhead | Isolated drop-in component adapted to detected framework/styling stack | Targeted `audit_ui.mjs` check on rendered component (reduced-motion toggle, contrast, keyboard focus, `Escape` dismissal, zero overflow) + **optional `record_motion_qa.mjs`** |
 
 ---
 
 ## 2. Goal Modes (What Changes in the Target Workspace)
 
-- **`build-from-scratch`:** Greenfield site or app derived from user product truth + optional inspiration URL(s)/screenshots. Preserves zero legacy markup; scaffolds clean modular structure.
-- **`redesign-vibe-transfer` (`hybrid` / `unslop-existing`):** Existing website or app where the user's **core product, real copy, routes, and working logic stay intact**, while typography, color system, layout rhythm, motion, and interactive polish are upgraded (optionally adopting the structural/visual grammar of an inspiration reference). Follow [`framework-adapters.md`](framework-adapters.md) strangler-fig safety rules.
-- **`extract-component`:** Dissect a single hero canvas, scroll choreography track, mega-menu, command palette, or tactile control from an inspiration URL and deliver a clean, dependency-light, original implementation in the user's stack.
+- **`build-from-scratch`:** Greenfield site or interactive web app derived from verified product truth, a 5-second Hero "Aha" interactive proof ([`interactive-product-proofs.md`](interactive-product-proofs.md)), and optional inspiration URL(s)/screenshots. Preserves zero legacy markup and scaffolds clean modular architecture.
+- **`redesign-vibe-transfer` (`hybrid` / `unslop-existing`):** Existing website or app where the user's **core product, real copy, routes, and working API/business logic stay intact**, while typography, color system, layout rhythm, Hero "Aha" proof, mobile ergonomics, and motion polish are upgraded (optionally adopting the structural grammar of an inspiration reference). Follow [`framework-adapters.md`](framework-adapters.md) strangler-fig safety rules.
+- **`extract-component`:** Dissect a single hero canvas, scroll choreography track, mega-menu, command palette, or tactile control from an inspiration URL and deliver a clean, dependency-light, original implementation in the user's detected stack.
 
 ---
 
-## 3. Ready-to-Use Starter Prompts (High-Signal Input Patterns)
+## 3. Ready-to-Use Starter Prompts (v2.0 High-Signal Recipes)
 
-Users get the sharpest first pass when they share four things upfront: **what they are building (or existing repo path)**, **optional inspiration URL(s) + what specifically they like about it**, **speed vs. launch-ready depth**, and **any hard brand/stack constraints**.
+Users get the sharpest build when they share four things upfront: **what they are building (or existing repo path)**, **optional inspiration URL(s) + what specifically they like**, **depth preset (`fast` / `standard` / `deep`)**, and **any hard brand, stack, or no-fabrication constraints**.
 
 ### Recipe 1 — Fast Hackathon / Rapid Prototype (`fast`)
-> *"Use unslop in **fast** mode. Build a working landing page and interactive demo for `[Product Name — 1-line description]` inspired by `[https://reference.example]`. Keep the layout pacing and typography feel, use clean defaults where unspecified, and get a verified working version up quickly."*
+> *"Use unslop in **fast** mode. Build a working landing page with a 5-second interactive hero demo for `[Product Name — 1-line description]` inspired by `[https://reference.example]`. Confirm 1–2 quick defaults, skip the style tile and motion video QA, and ship a verified working prototype."*
 
-### Recipe 2 — Launch-Ready Business Website (`deep` + Parallel Build)
-> *"Use unslop in **deep / launch-ready** mode to build a complete website for `[Product Name]`. Inspiration: `[https://reference.example]` — I specifically like `[e.g., the product showcase cadence, frosted top nav with search flyout, and 2-column feature grid]`. Our product does `[core offering + real specs/pricing]`. Run the discovery interview first, lock `.unslop/brief.md`, then build with parallel orchestration and full multi-route QA."*
+### Recipe 2 — Production Product Site (`standard` — Discovery + 10-Second Style Tile)
+> *"Use unslop in **standard** mode to build `[Product Name]` (`[1-sentence positioning]`). Inspiration: `[https://reference.example]` — I like `[specific layout/typography/motif]`. Walk me through the 10–15 question discovery intervals first, lock `.unslop/brief.md`, show me the **10-second Hero Style Tile checkpoint** for sign-off, then build the complete site and run UI audit verification."*
 
-### Recipe 3 — Redesign Existing Site / Vibe Transfer (`redesign-vibe-transfer`)
-> *"Use unslop to redesign my existing app in this repo (`[http://localhost:3000]`) using `[https://reference.example]` as visual inspiration. Keep all my existing product copy, routes, and API wiring intact — only transfer the layout spacing, typography hierarchy, palette feel, and smooth motion."*
+### Recipe 3 — Flagship Studio Launch (`deep` — Full v2.0 Studio Engine)
+> *"Use unslop in **deep** mode to build a flagship launch site for `[Product Name]`. Inspiration: `[https://reference.example]` — carry over `[specific framing motifs, surface polarity, and pacing]`. Core offerings & real specs: `[verified capabilities/tiers]`. Run the full 4-interval discovery (10–15 questions), lock `.unslop/brief.md` + the unified studio art-direction seed, verify the **10-second Hero Style Tile checkpoint**, then execute with the **4-Specialist Parallel Guild**, multi-route audit, desktop+mobile Motion Video QA, and the **8-Axis Design Director Critic (`>= 8/10`)**."*
 
-### Recipe 4 — Multi-Source Remix (`deep` or `standard`)
-> *"Use unslop to remix `[https://layout-ref.example]` for layout/navigation structure and `[https://motion-ref.example]` for atmospheric palette and scroll motion for `[Product Name]`. Lock one authoritative source per axis in `.unslop/brief.md` before building."*
+### Recipe 4 — Redesign Existing App / Vibe Transfer (`redesign-vibe-transfer`)
+> *"Use unslop in **standard** mode (`redesign-vibe-transfer`) to upgrade my existing app in this repo (`[http://localhost:3000]`) using `[https://reference.example]` as visual direction. Preserve all existing routes, real copy, and API handlers — run discovery to lock visual motifs, Hero 'Aha' proof, and mobile ergonomics, verify via the **10-second Hero Style Tile**, then refactor safely."*
 
-### Recipe 5 — Dissect & Port One Specific Animation or Component (`extract-component`)
-> *"Use unslop in **extract-component** mode. Inspect `[https://reference.example]`, reverse-engineer `[e.g., the sticky 3-stage scroll reveal / frosted Search overlay / WebGL hero shader]`, and implement an original, reduced-motion-safe version inside my existing `[Next.js / React / Vanilla]` project without changing unrelated pages."*
+### Recipe 5 — Multi-Source Remix (`deep` or `standard`)
+> *"Use unslop in **deep** mode to remix `[https://layout-ref.example]` for structural grid/navigation grammar and `[https://motion-ref.example]` for atmospheric palette and kinetic pacing for `[Product Name]`. Lock one authoritative source per axis during discovery, validate the blend in the **Phase 0.5 Hero Style Tile checkpoint**, and run full Studio Engine QA."*
+
+### Recipe 6 — Dissect & Port One Specific Animation or Component (`extract-component`)
+> *"Use unslop in **extract-component** mode. Inspect `[https://reference.example]`, reverse-engineer `[e.g., the sticky 3-stage scroll reveal / frosted Search overlay / WebGL hero shader]`, ask 3–5 targeted technical questions about my `[Next.js / React / Vanilla]` repo, and implement an original, reduced-motion-safe drop-in component with targeted QA without altering unrelated pages."*

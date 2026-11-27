@@ -1,76 +1,70 @@
 # UnslopAI — Architecture & Release Roadmap (`plan.md`)
 
-> Living engineering roadmap for the **`unslop`** portable Agent Skill suite (`v1.4.0` current release and upcoming milestones).
+> Living engineering roadmap for the **`unslop`** portable Agent Skill suite (`v2.0.0` Studio Engine current release).
 
 ---
 
 ## 1. Scope & Adaptive Execution Presets
 
-Build a single portable, standards-compliant Agent Skill (`skills/unslop/SKILL.md`) that inspects workspace and inspiration telemetry first, conducts request-specific adaptive discovery, locks `.unslop/brief.md` for approval, and routes cleanly across four presets:
+Build a single portable, standards-compliant Agent Skill (`skills/unslop/SKILL.md`) that parses requirements and inspects workspace/inspiration telemetry first, runs deep end-to-end discovery, validates visual direction with a 10-second browser-rendered Hero Style Tile, builds with a 4-specialist parallel guild, and passes Playwright + scroll-video 8-axis QA across four presets:
 
-1. **`fast` (Hackathon / Rapid MVP):** Light recon, 1–2 short Q&A rounds (or *"Use best defaults"*), compact `.unslop/brief.md`, single modular build pass, and 1 `audit_ui.mjs` verification pass.
-2. **`standard` (Balanced Production):** Full recon, grounded Q&A, `.unslop/brief.md` + `DESIGN.md` + `COMPONENTS.md`, modular build, and 1–2 `audit_ui.mjs` passes.
-3. **`deep` (Launch-Ready Flagship):** Full 4-layer extraction (+ optional REA), full contracts, **Two-Wave Disjoint Parallel Orchestration** (Wave 1 shared foundation → Wave 2 disjoint parallel asset/component/route workers → Wave 3 integration + **Independent Fresh-Context Reviewer**), and mandatory 2-pass multi-route QA.
-4. **`extract-component` (Single Animation / Component Dissect):** Targeted forensic motion/shader/state capture, component-scoped technical Q&A, and an isolated drop-in implementation adapted to the detected stack.
+1. **`fast` (Hackathon / Rapid MVP):** Light recon, 1–2 rapid confirmations (or *"Use best defaults"*), compact `.unslop/brief.md`, single modular build pass, and 1 `audit_ui.mjs` pass.
+2. **`standard` (Balanced Production):** Full recon, 10–15 question discovery (3–4 intervals), Phase 0.5 Hero Style Tile Checkpoint, `.unslop/DESIGN.md` + `COMPONENTS.md`, modular build, and 1–2 `audit_ui.mjs` passes (+ optional `record_motion_qa.mjs`).
+3. **`deep` (Flagship Studio Build):** Full 4-layer extraction (+ optional REA), 10–15 question discovery (4 intervals), Phase 0.5 Hero Style Tile Checkpoint, Locked Studio Seed, **4-Specialist Parallel Guild**, multi-route `audit_ui.mjs --routes`, mandatory `record_motion_qa.mjs` (desktop + mobile `.webm` walkthroughs + keyframes + rAF pacing), and **8-Axis Fresh-Context Design Director Critic (`>= 8/10`)**.
+4. **`extract-component` (Single Animation / Component Dissect):** Targeted forensic motion/shader/state capture, 3–5 component-scoped technical questions, isolated drop-in implementation, and targeted `audit_ui.mjs` (+ optional `record_motion_qa.mjs`).
 
 ---
 
-## 2. `v1.4.0` Visual-DNA & Adaptive Pipeline Architecture
+## 2. `v2.0.0` Studio Engine Pipeline Architecture
 
 ```text
-User Request + Target Workspace + Optional Inspiration URL(s) / Screenshots
-  └─▶ Phase 0: Silent Recon (doctor.mjs + detect_stack.mjs + inspect_site.mjs + extract_reference.mjs)
-               → Visual Screenshot Motif Audit + Dynamic Multi-Interval Q&A (1–10+ questions)
-               → Lock `.unslop/brief.md` (Visual DNA Manifest + Copy Economy + Two-Tier Contract)
+User Prompt + Target Workspace + Optional Inspiration URL(s) / Screenshots
+  └─▶ Phase 0: Requirement Parsing (5-Dimension Matrix) + Silent Recon
+               (doctor.mjs + detect_stack.mjs + inspect_site.mjs + extract_reference.mjs)
+               → 10–15 Question Deep Discovery (4 focused intervals of 3–4 questions)
+               → Lock `.unslop/brief.md` (Visual DNA + End-to-End Journeys + Art-Direction Seed)
+        │
+        ▼
+      Phase 0.5 (standard/deep): 10-Second Hero Style Tile Checkpoint (`generate_style_tile.mjs`)
+               → Browser-rendered Hero + Swatch WCAG + Type/Radius + Motion Freeze preview -> User Sign-Off
         │
         ▼
       Execution Router (`fast` | `standard` | `deep` | `extract-component`)
         ├─ Phase 1: Deep Forensic Review (reference-tokens.json, visualMotifs, copyDensity, shaders, crops)
-        ├─ Phase 2: Translation Matrix + `.unslop/DESIGN.md` (type-pairings.md + craft-primitives.md) + `COMPONENTS.md`
-        ├─ Phase 3: Wave 1 Foundation -> Wave 2 Parallel Disjoint Workers (pure nav <=5+1, anti-void, nowrap telemetry)
-        └─ Phase 4: Closed-Loop QA (`audit_ui.mjs --routes` + studioCraft + copyEconomy checks)
-                 -> Pass-3 7-Axis Side-by-Side Visual Critic (reference vs. critic-desktop-*.png, >= 8/10) -> Polish Loop
+        ├─ Phase 2: Translation Matrix + `.unslop/DESIGN.md` (One-Room Seed + type-pairings) + `COMPONENTS.md`
+        ├─ Phase 3: Wave 1 Foundation -> Wave 2 4-Specialist Parallel Guild
+        │            (Media & Seed | Global Chrome | 5s Hero Product Proof & Canvases | Editorial & Mobile Ergonomics)
+        └─ Phase 4: Closed-Loop QA (`audit_ui.mjs --routes` + `record_motion_qa.mjs` .webm videos & keyframes)
+                 -> Pass-3 8-Axis Fresh-Context Design Director Critic (`>= 8/10`) -> Targeted Polish Loop
 ```
 
 ---
 
 ## 3. Core Invariants
 
-- **Domain-Agnostic Skill Design:** All scripts, fixtures, and references generalize across dashboards, documentation sites, storefronts, studios, and kinetic landing pages without site-specific hardcoding.
-- **No-Fabrication Discipline:** Real repository content and bounded discovery drive `PRODUCT_BRIEF.md`; invented metrics, fake logos, and dead UI shells are rejected.
-- **Standalone Portability:** `skills/unslop/package.json`, `browser_helper.mjs`, and `doctor.mjs` enable standalone installation via `npx skills add`, plugin marketplaces, or manual folder copies without relying on repository-root paths.
+- **Domain-Agnostic Skill Design:** All scripts, fixtures, and references generalize across developer platforms, dashboards, storefronts, editorial studios, and kinetic web apps without site-specific hardcoding.
+- **No-Fabrication Discipline:** Real repository content and 10–15 question discovery drive `.unslop/brief.md`; invented metrics, fake logos, and dead UI shells are rejected.
+- **Standalone Portability:** `skills/unslop/package.json`, `browser_helper.mjs`, and `doctor.mjs` (`25` core files) enable standalone installation via `npx skills add`, plugin marketplaces, or manual copies without relying on repo-root paths.
 - **Access & IP Safety:** Stop immediately on HTTP 401/403/429/503, CAPTCHAs, Turnstile challenges, or login walls. Never copy proprietary logos, trademarks, third-party media, or verbatim source code.
-- **Deterministic Verification:** Every inspection, detection, and audit capability ships with automated regression assertions in `skills/unslop/scripts/verify_harness.mjs` and passes in GitHub Actions CI across Node 22 & 24.
+- **Deterministic Verification:** Every script ships with automated Playwright regression assertions across 13 suites in `skills/unslop/scripts/verify_harness.mjs` and runs in GitHub Actions CI across Node 22 & 24.
 
 ---
 
 ## 4. Release Milestones
 
-### `v1.0.0` — Baseline Release (Shipped)
-- Portable `skills/unslop/` engine (`SKILL.md`, 5 Playwright/REA/harness scripts, 10 modular references, `micro-synth.ts`, standalone `package.json`).
-- Zero-source-map WebGL/WebGL2 `shaderSource` & `getUniformLocation` runtime interception plus CORS-proof CSS `@keyframes` and `view-timeline` extraction.
-- Containment-deduplicated component cropping, sticky/fixed chrome hiding, and 4-frame scroll filmstrip scrubbing (`t0`–`t3`).
-- Uncontaminated raw `<canvas>` pixel variance/animation QA, `[inert]`/`opacity: 0`/`sr-only` visibility filtering, and top + mid-scroll mobile overlay collision detection.
-- Cross-ecosystem distribution manifests (`.claude-plugin/plugin.json`, `.claude-plugin/marketplace.json`), automated skill validator (`scripts/validate-skill.mjs`), GitHub Actions Playwright CI, and OSS governance docs.
+- **`v1.0.0` (Shipped):** Portable `skills/unslop/` engine, WebGL/CSS forensic dissolver, raw `<canvas>` QA, plugin/marketplace manifests, CI.
+- **`v1.1.0` (Shipped):** `doctor.mjs`, `detect_stack.mjs`, framework adapters, interactive patterns, CLS/oversized-image/multi-route auditing.
+- **`v1.2.0` (Shipped):** Inspect-first Phase 0 recon digest, `.unslop/brief.md` spec lock, 4 execution presets, Two-Wave parallel orchestration.
+- **`v1.3.0` (Shipped):** `extract_reference.mjs` DOM/CSS token extractor, curated typography registry, visual craft primitives, deterministic `studioCraft` checks & Pass-3 tiled critic.
+- **`v1.4.0` (Shipped):** Visual-motif & copy-economy extraction (`visualMotifs`, `copyDensity`), Two-Tier Rule Precedence, dynamic multi-interval discovery, 7-axis side-by-side visual lineage critic.
+- **`v2.0.0` (Current — Studio Engine):**
+  - 5-Dimension Requirement Coverage Matrix + 10–15 Question Deep Discovery Engine across 4 intervals (`product-discovery-interview.md`, `product-brief-template.md`).
+  - Phase 0.5 10-Second Hero Style Tile Checkpoint (`generate_style_tile.mjs`, `style-tile-checkpoint.md`).
+  - Locked One-Room Studio Art-Direction Seed + OG/favicon checklist (`visual-art-direction-and-media.md`) and 5-Second "Aha" Interactive Product Proofs & Re-Authored Mobile Ergonomics (`interactive-product-proofs.md`).
+  - Real Desktop & Mobile Scroll/Interaction Video Motion QA (`record_motion_qa.mjs`) + 8-Axis Design Director Critic (`audit_ui.mjs`) + 4-Specialist Parallel Guild (`parallel-orchestration.md`).
+  - `doctor.mjs` (`25` core files) and 13-suite Playwright `verify_harness.mjs`.
 
-### `v1.1.0` — Launch-Readiness Upgrade (Shipped)
-- **Preflight & Stack Intelligence:** Added `doctor.mjs` environment preflight and read-only `detect_stack.mjs` stack/token/route/asset detector with migration advice.
-- **Product Discovery, Framework Adapters & Interactive Blueprints:** Added `product-discovery-interview.md`, `product-brief-template.md`, `framework-adapters.md` (Next.js App Router, Vite + React, Tailwind v3/v4 + shadcn/ui, Vue/Nuxt/Astro, strangler-fig refactoring), `inspiration-translation-matrix.md` (7 communicative archetypes + 4-axis multi-source remix), and `interactive-component-patterns.md` (6 accessible Vanilla ESM + React state machines).
-- **Forensic Inspector Upgrades (`inspect_site.mjs`):** Added safe non-navigating interactive state click-probing (`interactiveStates`), viewport-triggered `motion.entranceReveals`, full-page `mobile-full.png` capture + `mobile.collapseSummary`, and `mediaInventory`.
-- **QA Auditor Upgrades (`audit_ui.mjs`):** Added `PerformanceObserver` CLS tracking, oversized image byte warnings (`> 500 KB`), semantic link/anchor/heading hygiene, active Motion-Off canvas freeze testing, alternate-theme WCAG AA contrast verification, active interactive overlay `Escape` dismissal verification, and multi-route batch auditing (`--routes` + shared chrome consistency).
-- **Playbook & Validator Hardening:** Integrated Phase 0 – Phase 5 completion gates into `SKILL.md`, synchronized `1.1.0` across all manifests and `package-lock.json`, and enforced complete reference-link coverage in `scripts/validate-skill.mjs`.
-
-### `v1.2.0` — Inspect-First Adaptive Discovery & Parallel Orchestration (Shipped)
-- **Inspect-First Phase 0 & `.unslop/brief.md` Spec Lock:** Runs silent recon (`doctor.mjs`, `detect_stack.mjs`, `inspect_site.mjs` `reconDigest`) before asking 2–3 request-specific, reference-grounded Q&A rounds (`AskUserQuestion` or numbered choices + *"Use best defaults"*), locking `.unslop/brief.md` with user approval prior to writing code.
-- **Execution Presets & Starter Prompts (`execution-modes-and-prompts.md`):** Unified Option A routing across `fast`, `standard`, `deep`, and `extract-component` presets with copy-paste prompt recipes.
-- **Two-Wave Parallel Orchestration & Independent Reviewer (`parallel-orchestration.md`):** Disjoint file-ownership parallelization (Wave 1 foundation → Wave 2 parallel asset/component/route workers → Wave 3 integration + fresh-context read-only reviewer) with clean sequential fallback on single-agent hosts.
-
-### `v1.3.0` — Studio Craft Engine, Reference Token Extraction & Pass-3 Visual Critic (Current)
-- **Measured DOM/CSS Reference Extraction (`extract_reference.mjs`):** Measures exact pixel-area light/dark surface ratios, actual `h1`–`code` weights & tracking (`400`/`500` vs generic `700`), modal corner radii per role, and section alignment sequences into `reference-tokens.json`.
-- **Optical Typography Registry & Visual Craft Primitives (`type-pairings.md`, `craft-primitives.md`):** Hard-bans default AI sans fonts unless reference-proven; encodes editorial serif & neo-grotesk pairings, `2%` inline SVG fractal-noise grain overlays, warm neutral / warm-charcoal surface discipline (`#151414`), `1px` edge-to-edge hairline grids, and product-native micro-UI artifacts.
-- **Deterministic Studio-Craft QA & Pass-3 Multimodal Critic (`audit_ui.mjs`):** Adds border-radius drift, consecutive centered-section monotony, `space-between` tall-card empty-void detection, header utility clutter, monospace bar wrapping, and banned default-font checks plus `critic-desktop-*.png` / `critic-mobile-*.png` tiles and `visual-critic-checklist.json`.
-
-### Post-`v1.3.0` Roadmap
-- **Multi-Page View Transitions:** Cross-document `@view-transition` choreography patterns and shared-element transition verification.
-- **Visual Regression Diffing:** Optional pixel-diff baseline snapshots inside `audit_ui.mjs` for iterative design-system refactors.
-- **Public Examples & Showcase:** Curated, runnable reference projects across frameworks (Next.js App Router, Vite + React, Astro, Vanilla ESM).
+### Post-`v2.0.0` Roadmap
+- **Cross-Document View Transitions:** `@view-transition` choreography patterns and multi-route transition verification.
+- **Visual Regression Pixel-Diffing:** Optional baseline pixel-diff snapshots inside `audit_ui.mjs` for iterative design-system refactors.
+- **Public Framework Starters:** Curated runnable showcase examples across Next.js App Router, Vite + React, Astro, and Vanilla ESM.

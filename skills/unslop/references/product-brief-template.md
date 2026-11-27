@@ -1,8 +1,8 @@
-# `.unslop/brief.md` Template
+# `.unslop/brief.md` Template (v2.0.0)
 
-Author this spec at **`.unslop/brief.md`** at the end of Phase 0 (after silent recon, visual inspection of reference captures, and the dynamic multi-interval discovery Q&A) and get quick user approval **before** writing any application code. Every downstream phase—including Wave 1–3 parallel workers and the independent fresh-context Pass-3 visual critic—reads `.unslop/brief.md` as the single source of truth.
+Author this spec at **`.unslop/brief.md`** at the end of Phase 0 (after prompt requirement parsing, silent recon, visual inspection of reference captures, and the 10–15 question adaptive discovery blueprint) and get user approval **before** Phase 0.5 Hero Style Tile generation and Wave 2 full-site build. Every downstream phase — including Phase 0.5 Style Tile verification, the 4-Specialist Parallel Guild, Motion Video QA, and the independent fresh-context 8-Axis Design Director Critic — reads `.unslop/brief.md` as the single source of truth.
 
-> **Workspace Hygiene:** Keep all scratch telemetry and contracts under `.unslop/` (`brief.md`, `stack-report.json`, `inspect/`, `DESIGN.md`, `COMPONENTS.md`, `audit/`). Ensure `.unslop/` is listed in the target repository's `.gitignore` (or clean up temporary recon/audit artifacts before final delivery) so generated projects never commit scratch captures.
+> **Workspace Hygiene:** Keep all scratch telemetry and contracts under `.unslop/` (`brief.md`, `stack-report.json`, `inspect/`, `style-tile/`, `DESIGN.md`, `COMPONENTS.md`, `motion-qa/`, `audit/`). Ensure `.unslop/` is listed in the target repository's `.gitignore` (or clean up temporary recon/audit artifacts before final delivery) so generated projects never commit scratch captures.
 
 ---
 
@@ -14,7 +14,7 @@ Author this spec at **`.unslop/brief.md`** at the end of Phase 0 (after silent r
 - **Typography Mood:** `technical-grotesque-500` | `expressive-editorial-serif` | `hardware-swiss` | `user-specified`
 - **Copy Density:** `minimal-visual-first` | `balanced-scannable` | `editorial-deep`
 - **Motion Density:** `minimal-crisp` | `balanced` | `motion-heavy-kinetic`
-- **Orchestration Mode:** `single-pass` (`fast`) | `sequential-modular` (`standard` / single-agent host) | `two-wave-parallel` (`deep` with subagents)
+- **Orchestration Mode:** `single-pass` (`fast`) | `sequential-modular` (`standard` / single-agent host) | `four-specialist-parallel-guild` (`deep` with subagents)
 - **User Approval Status:** `Approved` | `Approved with defaults` *(timestamp or turn note)*
 
 ## 2. Recon Snapshot (Grounded Ground Truth)
@@ -68,7 +68,7 @@ Map every kept band to an explicit layout archetype so adjacent bands alternate 
 
 | Band # | Section Role | Layout Pattern & Alignment | Surface / Framing Treatment | Target Module / Anchor |
 | :--- | :--- | :--- | :--- | :--- |
-| **1** | `<Hero / Primary Focus>` | `<e.g., Inset Rounded Halftone Frame + Ticker | Left Editorial + Right Interactive>` | `<Outer dot gutters + 1px blueprint rails + inset frame>` | `<#hero>` |
+| **1** | `<Hero / Primary Focus>` | `<e.g., Inset Rounded Halftone Frame + Ticker \| Left Editorial + Right Interactive>` | `<Outer dot gutters + 1px blueprint rails + inset frame>` | `<#hero>` |
 | **2** | `<Contrast / Problem→Solution>` | `<e.g., 50/50 Noise-vs-Calm Split Stage>` | `<Animated light dot-noise left vs. solid accent calm right>` | `<#contrast>` |
 | **3** | `<Architecture / Capabilities>` | `<e.g., Edge-to-Edge Hairline Bento + Luminous Micro-UIs>` | `<Shared 1px border dividers + corner-bracket callouts>` | `<#architecture>` |
 | **4** | `<Closing Conversion Frame>` | `<e.g., Inset Rounded Accent / Halftone Closing Card>` | `<Matches hero frame grammar + 2% SVG noise grain>` | `<#cta>` |
@@ -87,7 +87,7 @@ Lock exactly three semantic radius tokens across the entire codebase (zero ad-ho
 - **Banned Empty Stretch:** Never apply `justify-content: space-between` on any card or grid cell `> 320px` tall unless a real middle visual artifact (e.g., live SVG curve, notification banner, luminous micro-UI, terminal status bar, or structured spec matrix) fills the card body cleanly.
 
 ## 7. Visual DNA & Structural Motifs Manifest
-Populate this manifest by **visually inspecting** `.unslop/inspect/desktop-top.png`, `.unslop/inspect/desktop-mid.png`, `.unslop/inspect/desktop-full.png`, and `.unslop/inspect/components/*.png` (or user-provided visual references). Every downstream builder and the Pass-3 Visual Critic audit against these exact motifs:
+Populate this manifest by **visually inspecting** `.unslop/inspect/desktop-top.png`, `.unslop/inspect/desktop-mid.png`, `.unslop/inspect/desktop-full.png`, and `.unslop/inspect/components/*.png` (or user-provided visual references). Every downstream builder and the 8-Axis Design Director Critic audit against these exact motifs:
 
 - **Page Substrate & Framing:**
   - *Outer Margin Substrate:* `<e.g., Subtle 16px dot-matrix gutter outside the max-width container | Clean edge-to-edge neutral canvas>`
@@ -102,7 +102,7 @@ Populate this manifest by **visually inspecting** `.unslop/inspect/desktop-top.p
   - *Technical Callout Framing:* `<e.g., Notched open-corner brackets (┌ ┐ └ ┘) over light dotted field | Hairline left accent rule>`
   - *Micro-UI Surface Polarity:* `<e.g., Luminous crisp #FFFFFF cards with subtle accent-tinted rows & status pills (zero dark-box spam on light canvas) | Warm-charcoal recessed telemetry wells>`
 - **Reference Overrides (Tier 2 — Documented Deviations from Generic Defaults):**
-  List every intentional choice proven by the reference captures / `reference-tokens.json` that overrides generic layout habits so builders preserve visual lineage and the Pass-3 critic grades accurately:
+  List every intentional choice proven by the reference captures / `reference-tokens.json` that overrides generic layout habits so builders preserve visual lineage and the Design Director Critic grades accurately:
   - `<e.g., Centered inset halftone hero + matching inset closing CTA frame — intentional bookend symmetry paired with asymmetric mid-page bands>`
   - `<e.g., Pill primary CTAs (--r-control: 9999px) paired with crisp 4px cards (--r-card: 4px) — matches reference geometryLock>`
   - `<e.g., Pure 500-weight technical neo-grotesk + mono without editorial serif — matches technical infrastructure reference mood>`
@@ -136,3 +136,59 @@ Check every stateful surface that must work end-to-end (implement using [`intera
   - Zero `lorem ipsum`, placeholder company names, or copied brand marks/slogans from inspiration URLs.
   - Zero invented customer metrics, logos, certifications, uptime claims, or testimonials not provided above.
   - Zero dead interactive controls—every visible button, tab, filter, and modal trigger must perform a real state transition or be omitted.
+
+## 11. End-to-End User Journeys, Interactive Product Proof & Mobile Ergonomics
+Define the concrete visitor funnel, above-the-fold proof, route architecture, and touch-native mobile behavior before coding (implement hero proofs per [`interactive-product-proofs.md`](interactive-product-proofs.md)):
+
+### A. Visitor Conversion Funnel (Entry → Proof → Exploration → Action)
+1. **Entry (`0–2s`):** `<What the visitor sees immediately above the fold — headline, positioning anchor, visual substrate>`
+2. **5-Second Hero "Aha" Interactive Proof (`2–7s`):** `<Exact interactive widget/simulation inside the hero that demonstrates core product value on first click/drag/toggle — inputs, live visual state change, and reduced-motion fallback>`
+3. **Mid-Page Exploration & Depth (`7–45s`):** `<How interactive micro-UIs, comparison stages, or spec tables answer buyer objections>`
+4. **Conversion Action & Confirmation State (`45–60s`):** `<Exact primary CTA flow (form/drawer/route/checkout/demo booking) + explicit post-submit confirmation state & recovery path>`
+
+### B. Full Route & Page Inventory
+| Route / Anchor | Page Role | Primary Interactive Surface | Entry Points | Exit / Conversion Target |
+| :--- | :--- | :--- | :--- | :--- |
+| `/` | `<Flagship Landing & Hero "Aha" Proof>` | `<Hero proof + mid-page micro-UIs + Cmd+K>` | `<Direct / Brand nav>` | `<Primary CTA drawer or /signup>` |
+| `<e.g., /pricing>` | `<Plans & Live Usage Calculator>` | `<Interactive tier slider + billing toggle>` | `<Top nav / Hero secondary CTA>` | `<Plan selection modal/flow>` |
+| `<e.g., /docs or /product>` | `<Deep Capabilities / Architecture>` | `<Filterable spec explorer / code preview>` | `<Top nav / Bento deep link>` | `<Start / Demo CTA>` |
+
+### C. Mobile-Specific Ergonomics Contract (`390×844` — Never Naive Desktop Stacking)
+- **Thumb-Zone CTA Placement:** `<Primary CTA reachable in bottom thumb arc via sticky mobile action bar or compact hero placement — >= 44×44px tap targets>`
+- **Sticky Header Budget:** `<Single-row <= 56px–64px bar: brand mark + 1 primary CTA or search + menu drawer trigger; zero wrapped nav links>`
+- **Touch Drawers & Horizontal Snap Rails:** `<Replace wide desktop tables/bento strips with scroll-snap horizontal rails (with visible peek) or bottom/slide-over drawers + collapsible accordions rather than endless vertical card stacks>`
+- **Mobile Hero "Aha" Adaptation:** `<How the interactive hero proof scales cleanly to 390px without horizontal overflow, cramped controls, or sub-14px inputs>`
+
+## 12. Unified Art-Direction Seed & Asset Manifest
+Lock one cohesive visual world so every photograph, 3D render, diagram, and social card looks shot in the same studio rather than stitched from mismatched stock sources (author per [`visual-art-direction-and-media.md`](visual-art-direction-and-media.md)):
+
+### A. Locked 1-Room Studio Art-Direction Seed
+- **Lighting Direction & Quality:** `<e.g., Soft 45° upper-left diffused key light + subtle cool-neutral bounce fill + crisp rim edge separation; zero harsh flash or neon glows>`
+- **Color Temperature:** `<e.g., Neutral-warm daylight 5200K matching #FAF9F6 canvas | Moody architectural 4200K warm-charcoal tungsten>`
+- **Camera Framing & Perspective:** `<e.g., 50mm eye-level architectural straight-on + consistent 30° three-quarter hero angle; zero fisheye distortion>`
+- **Surface Finish & Material Grammar:** `<e.g., Matte bead-blasted aluminum, uncoated warm paper stock, subtle anodized hairlines; zero plastic gloss>`
+- **Palette Hex Bindings:** `<Canvas #..., Surface #..., Primary Ink #..., Accent #..., Shadow Anchor #...>`
+- **Negative Prompt Redlines:** `<No floating neon orbs, no purple-blue AI gradients, no garbled text inside raster renders, no mismatched lighting angles, no cluttered stock-office scenes>`
+
+### B. Favicon, App-Icon & OpenGraph Metadata Plan
+- **Favicon & Touch Icon:** `<Crisp geometric SVG favicon matching brand mark + 180×180 Apple touch icon + theme-color meta>`
+- **OpenGraph & Social Card (`1200×630`):** `<Exact og:title, og:description, og:image composition derived from the locked studio seed + Twitter summary_large_image tags>`
+- **Structured SEO & Analytics:** `<Canonical URL, semantic landmark hierarchy, JSON-LD schema type if applicable, analytics script hook or "None">`
+
+### C. Asset Manifest & `< 500 KB` Performance Budget
+| Asset Slot | Source (`Existing` / `Synthesized` / `Procedural SVG-Canvas`) | Format & Dimensions | Weight Budget (`< 500 KB`) | Alt Text / Reduced-Motion Fallback |
+| :--- | :--- | :--- | :--- | :--- |
+| `<Hero Visual / Shader>` | `<e.g., Procedural Canvas + grain | Studio WebP>` | `<e.g., WebP 1600×1000 | Canvas>` | `< <= 180 KB >` | `<Static crisp frame + descriptive alt>` |
+| `<Mid-Page Feature Media>` | `<e.g., Synthesized batch under locked seed>` | `<e.g., WebP 1200×800>` | `< <= 220 KB >` | `<Descriptive alt; lazy-loaded>` |
+| `<OG Social Card>` | `<e.g., Brand-matched static PNG/WebP>` | `<1200×630>` | `< <= 150 KB >` | `<Brand + value proposition>` |
+
+## 13. Phase 0.5 Hero Style Tile Sign-Off
+Complete this gate **before** Wave 2 full-site generation on all `standard` and `deep` builds (follow [`style-tile-checkpoint.md`](style-tile-checkpoint.md)):
+
+- **Checkpoint Mode:** `Executed (standard/deep)` | `Skipped (fast / extract-component / explicit user skip)`
+- **Automated Style Tile Report (`.unslop/style-tile/style-tile-report.json`):** `PASS` | `PASS after fixes` | `N/A` *(note contrast, 0px horizontal overflow, font load, 3-radius lock, and Hero "Aha" interactive proof state transition)*
+- **Visual Captures Inspected:**
+  - [ ] `.unslop/style-tile/style-tile-desktop.png` (`1440×900` — typography, framing motifs, upper-band contrast, Hero "Aha" clarity)
+  - [ ] `.unslop/style-tile/style-tile-mobile.png` (`390×844` — thumb-zone CTA, compact header, zero clipping/overflow)
+- **User Sign-Off Status:** `Approved for Wave 2` | `Approved with locked adjustments` | `Skipped`
+- **Locked Adjustments Applied Before Wave 2:** `<List any palette, type-scale, copy, motif, or Hero "Aha" tweaks requested by the user during the 10-second checkpoint, or "None — matched brief verbatim">`

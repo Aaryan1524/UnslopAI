@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [2.0.0] - 2026-11-27
+
+### Added
+- **10–15 Question Deep Discovery Engine (`product-discovery-interview.md`, `product-brief-template.md`):**
+  - Added Step 0A **5-Dimension End-to-End Requirement Coverage Matrix** (`Product Truth & Conversion`, `User Journeys & Functional Scope`, `Visual DNA & Art Direction`, `Hero "Aha" Product Proof, Motion & Media`, `Stack, Mobile Ergonomics, SEO/OG & Redlines`).
+  - Upgraded Step 0B to a structured **15-Question Deep Discovery Bank** delivered in **4 focused intervals (3–4 questions/turn)** with adaptive substitution for already-answered items and per-interval escape hatches (`Use best defaults` / `fast` mode / `extract-component`).
+  - Expanded `.unslop/brief.md` with **Section 11 (End-to-End User Journeys, Interactive Product Proof & Mobile Ergonomics)**, **Section 12 (Unified Art-Direction Seed & Asset Manifest)**, and **Section 13 (Phase 0.5 Hero Style Tile Sign-Off)**.
+- **Phase 0.5 — The 10-Second Hero Style Tile Checkpoint (`scripts/generate_style_tile.mjs`, `references/style-tile-checkpoint.md`, `npm run style-tile`):**
+  - Generates a standalone browser-rendered Hero + WCAG AA Swatch Strip + Type/Radius Specimen + Motion-Freeze preview (`index.html`, `style-tile-desktop.png`, `style-tile-mobile.png`, `style-tile-report.json`) from either a custom spec or `reference-tokens.json` so users validate direction in 10 seconds before full-site generation.
+- **Unified Art-Direction Seed & Interactive Product-Proof Studio (`visual-art-direction-and-media.md`, `interactive-product-proofs.md`):**
+  - Added the **Locked Studio Seed Contract** (one-room lighting, color temperature, focal length, surface finish, palette hex bindings, negative prompt redlines, `< 500 KB` budget) plus production SVG favicon, Apple touch icon, and `1200×630` Open Graph card checklist.
+  - Added `interactive-product-proofs.md` defining 5 above-the-fold 5-second "Aha" stateful proof archetypes and **re-authored mobile ergonomics** (`<= 12%` sticky header budget, thumb-zone action bars, snap-scroll proof decks, bottom sheets, Pointer Events scrub rules).
+- **Real Scroll & Interaction Video Motion QA (`scripts/record_motion_qa.mjs`, `npm run motion-qa`) & 8-Axis Design Director Critic (`audit_ui.mjs`, `parallel-orchestration.md`):**
+  - Records playable desktop (`1280×720`) and mobile (`390×844`) Playwright `.webm` walkthrough videos alongside ordered PNG keyframe strips, in-page `requestAnimationFrame` frame-pacing telemetry, hover + Motion-Off freeze checks, and mobile scroll ergonomics into `motion-qa-report.json`.
+  - Upgraded `visual-critic-checklist.json` to **`8-axis-10-point`** (`Axis 8: Motion Continuity, Video Walkthrough & Mobile Ergonomics`) and upgraded Wave 2 orchestration to the **4-Specialist Parallel Guild**.
+- **Verification Harness & Doctor Coverage (`doctor.mjs`, `verify_harness.mjs`):**
+  - Expanded `doctor.mjs` to verify all `25` core skill files and added Playwright regression **Suites 12 & 13** (`generateStyleTile` + `recordMotionQA` + 8-axis critic verification).
+
 ## [1.4.0] - 2026-11-26
 
 ### Added

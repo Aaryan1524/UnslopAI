@@ -1,6 +1,6 @@
 {
   "name": "unslop-skill",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "private": true,
   "description": "Standalone runtime manifest for the portable unslop Agent Skill (Playwright forensic extraction and kinetic UI audit).",
   "license": "MIT",

@@ -1633,13 +1633,20 @@ function buildVisualCriticChecklist({
   domAudit,
   typographyMeta,
   primaryCanvasColors,
+  mobileOverflow = null,
+  mobileNarrowOverflow = null,
+  smallTapTargets = [],
+  mobileOverlayCollisions = [],
+  reducedMotionToggleCheck = null,
+  canvasChecks = [],
+  scrollMotionChecks = [],
 }) {
   return {
     meta: {
       url,
       auditedAt,
       outputDir: path.resolve(outDir),
-      rubricScale: '7-axis-10-point',
+      rubricScale: '8-axis-10-point',
     },
     desktopTiles: desktopTileResult.files,
     mobileTiles: mobileTileResult.files,
@@ -1696,6 +1703,32 @@ function buildVisualCriticChecklist({
       generatedTiles: desktopTileResult.files,
       prompt:
         'Compare generated tiles side-by-side against reference captures: are background substrates, framing lines, hero geometry, surface polarity, and copy economy unmistakably aligned?',
+    },
+    motionAndMobileErgonomics: {
+      axisNumber: 8,
+      title: 'Motion Continuity, Video Walkthrough & Mobile Ergonomics',
+      requiredMotionQaAssets: [
+        'desktop-walkthrough.webm',
+        'mobile-walkthrough.webm',
+        'keyframe-desktop-01.png',
+        'keyframe-mobile-01.png',
+        'motion-qa-report.json',
+      ],
+      script: 'skills/unslop/scripts/record_motion_qa.mjs',
+      mobileOverflowPx: mobileOverflow?.docOverflowPx ?? 0,
+      mobileNarrowOverflowPx: mobileNarrowOverflow?.docOverflowPx ?? 0,
+      smallTapTargetsCount: Array.isArray(smallTapTargets) ? smallTapTargets.length : 0,
+      mobileOverlayCollisionsCount: Array.isArray(mobileOverlayCollisions) ? mobileOverlayCollisions.length : 0,
+      reducedMotionToggleTested: Boolean(reducedMotionToggleCheck?.tested),
+      reducedMotionFreezeVerified: Boolean(reducedMotionToggleCheck?.canvasStoppedAnimating),
+      animatedCanvasCount: Array.isArray(canvasChecks)
+        ? canvasChecks.filter((c) => !c.isBlank && c.animatesOverTime).length
+        : 0,
+      kineticScrollSectionsVerified: Array.isArray(scrollMotionChecks)
+        ? scrollMotionChecks.filter((m) => m.kineticChangesDetected).length
+        : 0,
+      prompt:
+        'Inspect desktop-walkthrough.webm, mobile-walkthrough.webm, keyframe-*.png, and motion-qa-report.json: are scroll choreography, hover feedback, and reduced-motion freezing smooth and intentional, and is mobile (390px) re-authored with zero horizontal overflow, compact sticky header (<= 16% viewport), and >= 44x44px tap targets?',
     },
   };
 }
@@ -2697,6 +2730,13 @@ export async function auditUI(url, outputDir, options = {}) {
       domAudit,
       typographyMeta,
       primaryCanvasColors,
+      mobileOverflow,
+      mobileNarrowOverflow,
+      smallTapTargets,
+      mobileOverlayCollisions,
+      reducedMotionToggleCheck,
+      canvasChecks,
+      scrollMotionChecks,
     });
 
     await fs.writeFile(path.join(outDir, 'audit.json'), JSON.stringify(auditReport, null, 2));

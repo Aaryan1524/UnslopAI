@@ -8,8 +8,8 @@
   "plugins": [
     {
       "name": "unslop",
-      "description": "Audit and refactor existing UIs or forensically dissect inspiration websites (DOM, CSS scroll-timelines, WebGL shaders, scroll filmstrips) to build original, verified interfaces.",
-      "version": "1.4.0",
+      "description": "Visual-DNA extraction, 10-15 question deep discovery, 10-second Hero Style Tile checkpoints, 4-specialist parallel crafting, and Playwright + scroll-video 8-axis QA.",
+      "version": "2.0.0",
       "source": "./",
       "author": {
         "name": "Aaryan",
