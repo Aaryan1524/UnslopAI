@@ -11,34 +11,37 @@
 [![Node.js](https://img.shields.io/badge/Node-%3E%3D22.6-339933.svg)](https://nodejs.org)
 [![Playwright](https://img.shields.io/badge/Playwright-Video%20%2B%208--Axis%20QA-45ba4b.svg)](https://playwright.dev)
 
-**One portable `/unslop` Studio Engine that extracts visual DNA, runs 10–15 question deep discovery, previews a 10-second Hero Style Tile, builds with a 4-specialist parallel guild, and verifies every frame in Chromium.**
+**One portable `/unslop` Studio Engine that turns a single prompt + inspiration URL into a verified, studio-grade multi-route website — with 10–15Q discovery, a 10-second Hero Style Tile, a 4-specialist parallel guild, and closed-loop Playwright + 8-axis visual QA.**
 
-[Quick Start](#quick-start) · [Before & After](#before-vs-after) · [How It Works](#how-it-works) · [Demo Prompts](#demo-prompts) · [Try Locally](#try-locally)
+[3-Step Quick Start](#quick-start-3-steps) · [Range Showcase](#one-skill-any-visual-world) · [Before & After](#before-vs-after) · [Architecture & Timing](#architecture--how-long-it-takes) · [Demo Prompts](#demo-prompts)
 
 </div>
 
 ---
 
-## Quick Start
+## Quick Start (3 Steps)
 
-Install in any Agent Skills-compatible coding agent:
+1. **Install once** in any Agent Skills-compatible coding agent:
+   ```bash
+   npx skills add Aaryan1524/UnslopAI
+   ```
+   *(Or via marketplace: `/plugin marketplace add Aaryan1524/UnslopAI` → `/plugin install unslop`)*
 
-```bash
-npx skills add Aaryan1524/UnslopAI
-```
+2. **Prompt with your product + optional inspiration URL:**
+   ```text
+   /unslop Build a launch-ready website for [MyProduct] inspired by [https://reference.example]
+   ```
 
-Or via plugin marketplace:
+3. **Answer quick discovery intervals → approve the 10-second Hero Style Tile → ship.**
+   Unslop inspects the reference site first, locks `.unslop/brief.md`, renders a verified desktop/mobile Style Tile for your sign-off, builds in parallel, and auto-polishes until Playwright and the 8-axis Design Director pass.
 
-```text
-/plugin marketplace add Aaryan1524/UnslopAI
-/plugin install unslop
-```
+---
 
-Then invoke `/unslop` with your product + optional inspiration URL:
+## One Skill. Any Visual World.
 
-```text
-/unslop Build a launch-ready site for [MyProduct] inspired by [https://reference.example]
-```
+<img src="./docs/assets/showcase.png" alt="Real range showcase: SURY Botanical Atelier (luxury parchment + 35mm grain) vs Kestrel Telemetry (technical blueprint + halftone)" width="100%" />
+
+Because `/unslop` measures real DOM/CSS tokens, visual motifs, and typography ratios from your inspiration URL instead of recycling one generic template, the same skill ships both a grainy 35mm luxury atelier and a surgical technical blueprint.
 
 ---
 
@@ -46,41 +49,35 @@ Then invoke `/unslop` with your product + optional inspiration URL:
 
 <img src="./docs/assets/before-after.png" alt="Before vs After comparison: Generic Single-Shot Prompt vs /unslop v2.0 Studio Engine" width="100%" />
 
-Instead of guessing from training weights, `/unslop` parses your full end-to-end requirements across 10–15 grounded questions, validates visual direction via a 10-second browser-rendered Hero Style Tile, builds real interactive product proofs, and blocks shipping until Playwright, scroll-video Motion QA, and the 8-axis Design Director critic pass.
-
 ---
 
-## How It Works
+## Architecture & How Long It Takes
 
-<img src="./docs/assets/pipeline.png" alt="Unslop v2.0 Studio Engine closed-loop pipeline" width="100%" />
+<img src="./docs/assets/architecture.png" alt="Unslop v2.0 Architecture and End-to-End Timing Breakdown" width="100%" />
 
-| Preset | Best For | Pipeline |
-| :--- | :--- | :--- |
-| **`fast`** | Hackathons & rapid prototypes | Quick recon → 1–2 confirmations → single modular build → 1 Playwright audit |
-| **`standard`** | Production sites & app redesigns | Full recon → **10–15 question discovery** → **10s Hero Style Tile** → modular build → `audit_ui` + optional `motion-qa` |
-| **`deep`** | Flagship launches & kinetic web apps | Full 4-layer extraction → **10–15 question discovery** → **10s Hero Style Tile** → **4-Specialist Parallel Guild** → multi-route `audit_ui` + **scroll-video Motion QA** + **8-Axis Director Critic (`>= 8/10`)** |
-| **`extract-component`** | Porting 1 shader, motion, or widget | Targeted `css-motion` / `shaders` recon → 3–5 technical Qs → reduced-motion drop-in → focused QA |
+| Preset | Typical Time | Best For | What Runs |
+| :--- | :--- | :--- | :--- |
+| **`fast`** | **~2 min** | Hackathons & rapid prototypes | Quick recon → 1–2 confirmations → single modular build → 1 Playwright audit |
+| **`standard`** | **~5 min** | Production pages & redesigns | Full recon → 10–15Q discovery → **10s Hero Style Tile** → modular build → `audit_ui` + optional `motion-qa` |
+| **`deep`** | **~8–10 min** | Flagship multi-route launches | Full 4-layer extraction → 10–15Q discovery → **10s Hero Style Tile** → **4-Specialist Parallel Guild** → multi-route `audit_ui` + **Motion QA** + **8-Axis Critic (`>= 8/10`)** |
+| **`extract-component`** | **~3 min** | Porting 1 animation or widget | Targeted shader/motion recon → 3–5 technical Qs → reduced-motion drop-in → focused QA |
 
 ---
 
 ## Demo Prompts
 
-Copy, replace the brackets, and run:
-
-- **Launch-ready studio site (`deep`):**
-  > `/unslop Build a complete launch-ready website for [Product] inspired by [https://reference.example]. Run the full 10–15 question discovery interview across intervals, show me the 10-second Hero Style Tile checkpoint first, then build with the 4-specialist parallel guild and full Playwright + video motion QA.`
+- **Launch-ready flagship (`deep`):**
+  > `/unslop Build a complete launch-ready website for [Product] inspired by [https://reference.example]. Run the 10–15 question discovery interview, show me the 10-second Hero Style Tile first, then build with the 4-specialist parallel guild and full Playwright + Motion QA.`
 - **Fast working MVP (`fast`):**
   > `/unslop in fast mode: build a landing page and interactive demo for [Product] inspired by [https://reference.example]. Use best defaults and verify zero layout breaks.`
 - **Redesign an existing app:**
   > `/unslop Redesign my app at [http://localhost:3000] using [https://reference.example] for layout, typography, and motion. Keep all existing copy, routes, and logic intact.`
 - **Port one animation or component (`extract-component`):**
-  > `/unslop in extract-component mode: inspect [https://reference.example] and build an original reduced-motion-safe version of [the hero shader / sticky walkthrough / command bar] in my repo.`
+  > `/unslop in extract-component mode: inspect [https://reference.example] and build an original reduced-motion-safe version of [the hero shader / sticky story / command bar] in my repo.`
 
 ---
 
 ## Try Locally
-
-Clone the repo and run the style-tile generator, reference extractor, video motion QA, or full 13-suite Playwright verification harness:
 
 ```bash
 git clone https://github.com/Aaryan1524/UnslopAI.git && cd UnslopAI && npm install
@@ -88,7 +85,7 @@ npm run doctor                                                      # Check Node
 npm run style-tile -- --demo ./.unslop/style-tile                   # Render a 10-second Hero Style Tile + WCAG check
 npm run extract-ref -- https://example.com ./.unslop/ref.json       # Extract measured DOM/CSS & visual motifs
 npm run audit -- http://127.0.0.1:3000 ./.unslop/audit/pass-1       # Audit layout, contrast, motion & craft
-npm run motion-qa -- http://127.0.0.1:3000 ./.unslop/audit/motion   # Record desktop/mobile video + rAF pacing + keyframes
+npm run motion-qa -- http://127.0.0.1:3000 ./.unslop/audit/motion   # Record desktop/mobile video + 60fps rAF + keyframes
 npm run check                                                       # Run validator, typecheck & 13-suite harness
 ```
 
@@ -120,25 +117,26 @@ npm run validate:skill && npm run verify:types && npm run verify        # Manife
 UnslopAI/
 ├── .claude-plugin/          # Plugin & marketplace manifests
 ├── .github/                 # CI (Node 22 + 24 Playwright) & templates
-├── docs/assets/             # Visual overview, before/after & pipeline graphics
+├── docs/assets/             # Banner, showcase, before/after, architecture & pipeline graphics
 ├── fixtures/                # Offline test fixtures (clean, slop, kinetic, interactive)
 ├── scripts/                 # validate-skill.mjs (manifest, link & syntax checks)
 └── skills/unslop/
     ├── SKILL.md             # Unified adaptive /unslop v2.0 Studio Engine playbook
-    ├── scripts/             # doctor, detect_stack, inspect_site, extract_reference, generate_style_tile, rea_inspect, audit_ui, record_motion_qa, verify_harness
-    ├── references/          # 21 lazy-loaded discovery, style-tile, art-direction, product-proof, typography, orchestration & QA guides
+    ├── scripts/             # 9 executable Playwright & preflight scripts
+    ├── references/          # 21 strict lazy-loaded discovery, style-tile, art-direction, product-proof & QA guides
     └── assets/              # micro-synth.ts (optional zero-dependency Web Audio feedback)
 ```
 
 </details>
 
 <details>
-<summary><strong>Guardrails, Ethics & Docs</strong></summary>
+<summary><strong>Guardrails, Roadmap & Docs</strong></summary>
 
 - **Adapt, never clone:** Transfers layout geometry, visual motifs, and kinetic physics onto 100% original copy, shaders, SVGs, and open-source typography. Never copies trademarks, copyrighted media, or proprietary code.
 - **No fabrication:** Inventories real repo content first and forbids invented metrics, logos, or testimonials.
 - **Stop-on-block:** Halts immediately on `401`/`403`/`429`/`503`, CAPTCHAs, Cloudflare Turnstile, or login walls and falls back to user screenshots.
 - **Clean target repos:** All scratch recon, style tiles, videos, and QA outputs stay git-ignored inside `.unslop/`.
+- **Upcoming (`v2.1`):** Default Curated Design Archetype Library for no-URL greenfield prompts — tracked in [GitHub Issues](https://github.com/Aaryan1524/UnslopAI/issues).
 - **Docs:** [`SKILL.md`](./skills/unslop/SKILL.md) · [`Discovery Interview`](./skills/unslop/references/product-discovery-interview.md) · [`Style Tile Checkpoint`](./skills/unslop/references/style-tile-checkpoint.md) · [`Interactive Product Proofs`](./skills/unslop/references/interactive-product-proofs.md) · [`Execution Modes`](./skills/unslop/references/execution-modes-and-prompts.md) · [`Capabilities & Limitations`](./skills/unslop/references/capabilities-and-limitations.md) · [`CHANGELOG.md`](./CHANGELOG.md) · [`plan.md`](./plan.md) · [`CONTRIBUTING.md`](./CONTRIBUTING.md) · [`SECURITY.md`](./SECURITY.md) · [`MIT License`](./LICENSE)
 
 </details>
