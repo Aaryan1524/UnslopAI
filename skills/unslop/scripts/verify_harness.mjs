@@ -9,6 +9,8 @@ import { auditUI, auditMultiRoute } from './audit_ui.mjs';
 import { detectStack } from './detect_stack.mjs';
 import { runDoctor } from './doctor.mjs';
 import { extractReference } from './extract_reference.mjs';
+import { generateStyleTile } from './generate_style_tile.mjs';
+import { recordMotionQA } from './record_motion_qa.mjs';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '../../..');
@@ -279,8 +281,8 @@ try {
   assert.ok(cleanAudit.screenshots.desktopTiles?.length >= 1, 'Expected desktopTiles on clean audit');
   assert.ok(cleanAudit.screenshots.mobileTiles?.length >= 1, 'Expected mobileTiles on clean audit');
   const cleanChecklist = JSON.parse(await fs.readFile(path.join(outRoot, 'audit-clean', 'visual-critic-checklist.json'), 'utf8'));
-  assert.equal(cleanChecklist.meta?.rubricScale, '7-axis-10-point', 'Expected 7-axis-10-point rubricScale');
-  for (const rubricKey of ['typographyCraft', 'deadSpaceAudit', 'microUiWrapping', 'rhythmAndMonotony', 'referenceFidelity', 'surfaceCohesion', 'sideBySideVisualLineage', 'copyEconomy']) {
+  assert.equal(cleanChecklist.meta?.rubricScale, '8-axis-10-point', 'Expected 8-axis-10-point rubricScale');
+  for (const rubricKey of ['typographyCraft', 'deadSpaceAudit', 'microUiWrapping', 'rhythmAndMonotony', 'referenceFidelity', 'surfaceCohesion', 'sideBySideVisualLineage', 'motionAndMobileErgonomics', 'copyEconomy']) {
     assert.ok(cleanChecklist[rubricKey], `Expected ${rubricKey} inside visual-critic-checklist.json`);
   }
 
@@ -394,7 +396,7 @@ try {
   assert.equal(doctorReport.checks.playwright.ok, true, 'Playwright resolution must pass');
   assert.equal(doctorReport.checks.browserLaunch.skipped, true, 'Browser launch check should be skipped');
   assert.equal(doctorReport.checks.skillFiles.ok, true, `Missing skill files: ${JSON.stringify(doctorReport.checks.skillFiles.missing)}`);
-  assert.equal(doctorReport.checks.skillFiles.checkedCount, 21, 'Expected 21 verified core skill files');
+  assert.equal(doctorReport.checks.skillFiles.checkedCount, 25, 'Expected 25 verified core skill files');
 
   console.log('8) Verifying inspectSite v1.1/v1.2/v1.3 telemetry & reconDigest on sample-v11-interactive.html...');
   const v11InspectOut = path.join(outRoot, 'inspect-v11');
@@ -572,6 +574,148 @@ try {
   );
   assert.ok(scAllowFonts.studioCraft.defaultFontFlags.includes('Inter'), 'defaultFontFlags telemetry stays populated');
 
+  console.log('12) Verifying v2.0 10-Second Hero Style Tile Checkpoint (generate_style_tile.mjs)...');
+  const styleTileDemoOut = path.join(outRoot, 'style-tile-demo');
+  const tileReport = await generateStyleTile(null, styleTileDemoOut);
+  assert.equal(
+    tileReport.passed,
+    true,
+    `Default Style Tile failed unexpectedly: ${JSON.stringify(tileReport, null, 2)}`,
+  );
+  assert.ok(
+    tileReport.overflow.desktopPx <= 1,
+    `Expected Style Tile desktop overflow <= 1px, got ${tileReport.overflow.desktopPx}`,
+  );
+  assert.ok(
+    tileReport.overflow.mobilePx <= 1,
+    `Expected Style Tile mobile overflow <= 1px, got ${tileReport.overflow.mobilePx}`,
+  );
+  assert.equal(
+    tileReport.contrast.failures.length,
+    0,
+    `Expected 0 Style Tile contrast failures, got ${JSON.stringify(tileReport.contrast.failures)}`,
+  );
+  assert.ok(
+    tileReport.contrast.minRatio >= 4.5,
+    `Expected Style Tile min contrast ratio >= 4.5, got ${tileReport.contrast.minRatio}`,
+  );
+  assert.equal(tileReport.motionFreezeVerified, true, 'Expected Style Tile motion freeze verification to pass');
+  await fs.access(path.join(styleTileDemoOut, 'index.html'));
+  await fs.access(path.join(styleTileDemoOut, 'style-tile-report.json'));
+  const tileDesktopBuf = await fs.readFile(path.join(styleTileDemoOut, 'style-tile-desktop.png'));
+  assert.equal(
+    tileDesktopBuf.subarray(0, 8).toString('hex'),
+    '89504e470d0a1a0a',
+    'style-tile-desktop.png must be a valid PNG',
+  );
+  const tileMobileBuf = await fs.readFile(path.join(styleTileDemoOut, 'style-tile-mobile.png'));
+  assert.equal(
+    tileMobileBuf.subarray(0, 8).toString('hex'),
+    '89504e470d0a1a0a',
+    'style-tile-mobile.png must be a valid PNG',
+  );
+
+  const styleTileRefOut = path.join(outRoot, 'style-tile-from-ref');
+  const refTileReport = await generateStyleTile(path.join(refOutDir, 'reference-tokens.json'), styleTileRefOut);
+  assert.equal(
+    refTileReport.passed,
+    true,
+    `Reference-derived Style Tile failed unexpectedly: ${JSON.stringify(refTileReport, null, 2)}`,
+  );
+  await fs.access(path.join(styleTileRefOut, 'index.html'));
+  await fs.access(path.join(styleTileRefOut, 'style-tile-report.json'));
+
+  console.log('13) Verifying v2.0 Real Scroll & Interaction Video Motion QA (record_motion_qa.mjs) + 8-Axis Critic Checklist...');
+  const motionQaOut = path.join(outRoot, 'motion-qa-v11');
+  const motionReport = await recordMotionQA(`${baseUrl}/sample-v11-interactive.html`, motionQaOut);
+  assert.equal(
+    motionReport.passed,
+    true,
+    `Motion QA failed unexpectedly: ${JSON.stringify(motionReport, null, 2)}`,
+  );
+  assert.equal(motionReport.meta.blocked, false, 'Motion QA on local fixture must not be blocked');
+
+  const resolveArtifactPath = (dir, fileOrPath) =>
+    path.isAbsolute(fileOrPath) ? fileOrPath : path.join(dir, fileOrPath);
+
+  let desktopVideoBytes = 0;
+  let mobileVideoBytes = 0;
+  if (motionReport.videos?.desktop && motionReport.videos?.mobile) {
+    const desktopVideoPath = resolveArtifactPath(motionQaOut, motionReport.videos.desktop);
+    const mobileVideoPath = resolveArtifactPath(motionQaOut, motionReport.videos.mobile);
+    assert.ok(desktopVideoPath.endsWith('.webm'), `Expected desktop video to be .webm, got ${desktopVideoPath}`);
+    assert.ok(mobileVideoPath.endsWith('.webm'), `Expected mobile video to be .webm, got ${mobileVideoPath}`);
+    const desktopVideoStat = await fs.stat(desktopVideoPath);
+    const mobileVideoStat = await fs.stat(mobileVideoPath);
+    assert.ok(desktopVideoStat.size > 5000, `Expected desktop video > 5000 bytes, got ${desktopVideoStat.size}`);
+    assert.ok(mobileVideoStat.size > 5000, `Expected mobile video > 5000 bytes, got ${mobileVideoStat.size}`);
+    desktopVideoBytes = desktopVideoStat.size;
+    mobileVideoBytes = mobileVideoStat.size;
+  } else {
+    assert.ok(
+      motionReport.issues.some((i) => /ffmpeg|video/i.test(i)),
+      `When Playwright ffmpeg is absent, expected video fallback advisory in issues, got ${JSON.stringify(motionReport.issues)}`,
+    );
+  }
+
+  assert.ok(
+    Array.isArray(motionReport.keyframes?.desktop) && motionReport.keyframes.desktop.length >= 3,
+    `Expected >= 3 desktop keyframes, got ${motionReport.keyframes?.desktop?.length}`,
+  );
+  assert.ok(
+    Array.isArray(motionReport.keyframes?.mobile) && motionReport.keyframes.mobile.length >= 2,
+    `Expected >= 2 mobile keyframes, got ${motionReport.keyframes?.mobile?.length}`,
+  );
+  const firstDesktopKfEntry = motionReport.keyframes.desktop[0];
+  const firstDesktopKfFile =
+    typeof firstDesktopKfEntry === 'string'
+      ? firstDesktopKfEntry
+      : firstDesktopKfEntry?.file || firstDesktopKfEntry?.path || firstDesktopKfEntry?.screenshot;
+  assert.ok(firstDesktopKfFile, 'Expected valid first desktop keyframe file reference');
+  const firstDesktopKfBuf = await fs.readFile(resolveArtifactPath(motionQaOut, firstDesktopKfFile));
+  assert.equal(
+    firstDesktopKfBuf.subarray(0, 8).toString('hex'),
+    '89504e470d0a1a0a',
+    'First desktop motion QA keyframe must be a valid PNG',
+  );
+
+  assert.ok(
+    motionReport.framePacing?.sampleCount >= 3,
+    `Expected framePacing.sampleCount >= 3, got ${motionReport.framePacing?.sampleCount}`,
+  );
+  assert.ok(
+    motionReport.framePacing?.avgFps > 0,
+    `Expected framePacing.avgFps > 0, got ${motionReport.framePacing?.avgFps}`,
+  );
+  assert.equal(motionReport.interactions?.motionToggleTested, true, 'Expected motionToggleTested: true');
+  assert.equal(motionReport.interactions?.motionFreezeVerified, true, 'Expected motionFreezeVerified: true');
+  assert.ok(
+    motionReport.mobileErgonomics?.overflowDuringScrollPx <= 1,
+    `Expected mobileErgonomics.overflowDuringScrollPx <= 1, got ${motionReport.mobileErgonomics?.overflowDuringScrollPx}`,
+  );
+  await fs.access(path.join(motionQaOut, 'motion-qa-report.json'));
+
+  const scChecklist = JSON.parse(
+    await fs.readFile(path.join(scDefectsOut, 'visual-critic-checklist.json'), 'utf8'),
+  );
+  assert.equal(
+    scChecklist.meta?.rubricScale,
+    '8-axis-10-point',
+    `Expected 8-axis-10-point rubricScale in visual-critic-checklist.json, got ${scChecklist.meta?.rubricScale}`,
+  );
+  for (const axisKey of [
+    'typographyCraft',
+    'deadSpaceAudit',
+    'microUiWrapping',
+    'rhythmAndMonotony',
+    'referenceFidelity',
+    'surfaceCohesion',
+    'sideBySideVisualLineage',
+    'motionAndMobileErgonomics',
+  ]) {
+    assert.ok(scChecklist[axisKey], `Expected 8-axis critic key "${axisKey}" in visual-critic-checklist.json`);
+  }
+
   console.log('ALL VERIFICATION CHECKS PASSED:', {
     cdpAvailable: inspectReport.meta.cdpSnapshot.available,
     inspectSections: inspectReport.sections.length,
@@ -603,6 +747,14 @@ try {
     v13RefDominantPolarity: refTokens.surfaceRatio.dominantPolarity,
     v13StudioCraftWarningsCaught: scDefects.studioCraft.warnings.length,
     v13CriticDesktopTiles: scDefects.screenshots.desktopTiles.length,
+    v20StyleTileDemoPassed: tileReport.passed,
+    v20StyleTileMinContrast: tileReport.contrast.minRatio,
+    v20StyleTileRefPassed: refTileReport.passed,
+    v20MotionQaPassed: motionReport.passed,
+    v20MotionQaDesktopVideoBytes: desktopVideoBytes,
+    v20MotionQaMobileVideoBytes: mobileVideoBytes,
+    v20MotionQaAvgFps: motionReport.framePacing.avgFps,
+    v20CriticRubricScale: scChecklist.meta?.rubricScale,
   });
 } finally {
   server.close();

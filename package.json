@@ -1,8 +1,8 @@
 {
   "name": "unslop-ai",
-  "version": "1.4.0",
+  "version": "2.0.0",
   "private": true,
-  "description": "Portable Agent Skill suite for forensic UI deconstruction, WebGL and CSS scroll choreography translation, anti-slop refactoring, and closed-loop Playwright kinetic QA.",
+  "description": "Portable Agent Skill for visual-DNA extraction, 10-15 question deep UI discovery, 10-second Hero Style Tile checkpoints, 4-specialist parallel crafting, and Playwright + video 8-axis QA.",
   "license": "MIT",
   "author": {
     "name": "Aaryan",
@@ -34,9 +34,11 @@
     "doctor": "node skills/unslop/scripts/doctor.mjs",
     "detect-stack": "node skills/unslop/scripts/detect_stack.mjs",
     "extract-ref": "node skills/unslop/scripts/extract_reference.mjs",
+    "style-tile": "node skills/unslop/scripts/generate_style_tile.mjs",
     "inspect": "node skills/unslop/scripts/inspect_site.mjs",
     "rea-inspect": "node skills/unslop/scripts/rea_inspect.mjs",
     "audit": "node skills/unslop/scripts/audit_ui.mjs",
+    "motion-qa": "node skills/unslop/scripts/record_motion_qa.mjs",
     "validate:skill": "node scripts/validate-skill.mjs",
     "verify": "node skills/unslop/scripts/verify_harness.mjs",
     "verify:types": "node --experimental-strip-types -e \"import './skills/unslop/assets/micro-synth.ts'\"",

@@ -18,6 +18,8 @@ const REQUIRED_SKILL_FILES = [
   'scripts/rea_inspect.mjs',
   'scripts/detect_stack.mjs',
   'scripts/extract_reference.mjs',
+  'scripts/generate_style_tile.mjs',
+  'scripts/record_motion_qa.mjs',
   'scripts/doctor.mjs',
   'references/design-md-template.md',
   'references/components-spec-template.md',
@@ -31,6 +33,8 @@ const REQUIRED_SKILL_FILES = [
   'references/framework-adapters.md',
   'references/inspiration-translation-matrix.md',
   'references/interactive-component-patterns.md',
+  'references/style-tile-checkpoint.md',
+  'references/interactive-product-proofs.md',
 ];
 
 function parseSemver(versionStr = process.versions.node) {
